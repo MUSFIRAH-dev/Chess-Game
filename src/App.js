@@ -452,7 +452,61 @@ const ChessGame = () => {
           </ul>
         </div>
       </div>
-    </div>
+              <footer style={{
+        textAlign: 'center',
+        padding: '20px',
+        marginTop: '30px',
+        backgroundColor: '#f8f9fa',
+        borderTop: '2px solid #e0e0e0',
+        width: '100%'
+      }}>
+        <p style={{ 
+          margin: '8px 0', 
+          fontSize: '16px',
+          color: '#333'
+        }}>
+          ♟️ Built with ❤️ by <strong>MUSFIRAH</strong>
+        </p>
+        <p style={{ 
+          margin: '5px 0', 
+          fontSize: '14px',
+          color: '#666'
+        }}>
+          <a 
+            href="https://github.com/MUSFIRAH-dev/ChessGame" 
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ 
+              color: '#0366d6',
+              textDecoration: 'none',
+              fontWeight: '500'
+            }}
+          >
+            View on GitHub
+          </a>
+          {' • '}
+          <a 
+            href="https://github.com/MUSFIRAH-dev" 
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ 
+              color: '#0366d6',
+              textDecoration: 'none',
+              fontWeight: '500'
+            }}
+          >
+            @MUSFIRAH-dev
+          </a>
+        </p>
+        <p style={{
+          margin: '5px 0',
+          fontSize: '12px',
+          color: '#999'
+        }}>
+          React • JavaScript • Vercel
+        </p>
+      </footer>
+      </div>
   );
 };
 
