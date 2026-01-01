@@ -11,6 +11,7 @@ const ChessGame = () => {
   const [capturedPieces, setCapturedPieces] = useState({ white: [], black: [] });
   const [gameMode, setGameMode] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [promotionSquare, setPromotionSquare] = useState(null);
 
   useEffect(() => {
     if (gameMode) {
@@ -19,14 +20,14 @@ const ChessGame = () => {
   }, [gameMode]);
 
   useEffect(() => {
-    if (gameMode === 'ai' && currentPlayer === 'black' && !gameOver) {
+    if (gameMode === 'ai' && currentPlayer === 'black' && !gameOver && !promotionSquare) {
       setIsThinking(true);
       const timeout = setTimeout(() => {
         makeAIMove();
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [currentPlayer, gameMode, gameOver]);
+  }, [currentPlayer, gameMode, gameOver, promotionSquare]);
 
   const initializeBoard = () => {
     const newBoard = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -58,6 +59,7 @@ const ChessGame = () => {
     setValidMoves([]);
     setCapturedPieces({ white: [], black: [] });
     setIsThinking(false);
+    setPromotionSquare(null);
   };
 
   const getPieceSymbol = (piece) => {
@@ -83,6 +85,23 @@ const ChessGame = () => {
       king: 100
     };
     return values[type] || 0;
+  };
+
+  const checkPromotion = (row, piece) => {
+    if (piece.type === 'pawn') {
+      if ((piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const promotePawn = (row, col, pieceType) => {
+    const newBoard = board.map(r => [...r]);
+    newBoard[row][col] = { type: pieceType, color: newBoard[row][col].color };
+    setBoard(newBoard);
+    setPromotionSquare(null);
+    setCurrentPlayer(currentPlayer === 'white' ? 'black' : 'white');
   };
 
   const isValidMove = (fromRow, fromCol, toRow, toCol, piece, testBoard = board) => {
@@ -251,13 +270,17 @@ const ChessGame = () => {
     newBoard[toR][toC] = movingPiece;
     newBoard[fromR][fromC] = null;
     
+    if (checkPromotion(toR, movingPiece)) {
+      newBoard[toR][toC] = { type: 'queen', color: 'black' };
+    }
+    
     setBoard(newBoard);
     setCurrentPlayer('white');
     setIsThinking(false);
   };
 
   const handleSquareClick = (row, col) => {
-    if (gameOver || (gameMode === 'ai' && currentPlayer === 'black')) return;
+    if (gameOver || promotionSquare || (gameMode === 'ai' && currentPlayer === 'black')) return;
 
     if (selectedSquare) {
       const [selectedRow, selectedCol] = selectedSquare;
@@ -283,7 +306,13 @@ const ChessGame = () => {
         newBoard[selectedRow][selectedCol] = null;
         
         setBoard(newBoard);
-        setCurrentPlayer(currentPlayer === 'white' ? 'black' : 'white');
+        
+        if (checkPromotion(row, movingPiece)) {
+          setPromotionSquare({ row, col });
+        } else {
+          setCurrentPlayer(currentPlayer === 'white' ? 'black' : 'white');
+        }
+        
         setSelectedSquare(null);
         setValidMoves([]);
       } else if (board[row][col]?.color === currentPlayer) {
@@ -305,208 +334,198 @@ const ChessGame = () => {
 
   if (!gameMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl">
-          <div className="text-center mb-8">
-            <Crown className="text-yellow-400 mx-auto mb-4" size={64} />
-            <h1 className="text-4xl font-bold text-white mb-2">Chess Game</h1>
-            <p className="text-slate-300">Choose your game mode</p>
-          </div>
-          
-          <div className="space-y-4">
-            <button
-              onClick={() => setGameMode('pvp')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-colors text-lg"
-            >
-              <User size={24} />
-              2 Players (Local)
-            </button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+        <div className="flex-grow flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl">
+            <div className="text-center mb-8">
+              <Crown className="text-yellow-400 mx-auto mb-4" size={64} />
+              <h1 className="text-4xl font-bold text-white mb-2">Chess Game</h1>
+              <p className="text-slate-300">Choose your game mode</p>
+            </div>
             
-            <button
-              onClick={() => setGameMode('ai')}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-colors text-lg"
-            >
-              <Cpu size={24} />
-              vs Computer (AI)
-            </button>
-          </div>
-          
-          <div className="mt-6 bg-slate-700 p-4 rounded-lg text-slate-300 text-sm">
-            <p className="font-bold text-white mb-2">Game Modes:</p>
-            <p className="mb-1">🎮 <strong>2 Players:</strong> Play with a friend locally</p>
-            <p>🤖 <strong>vs Computer:</strong> Practice against AI</p>
+            <div className="space-y-4">
+              <button
+                onClick={() => setGameMode('pvp')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-colors text-lg"
+              >
+                <User size={24} />
+                2 Players (Local)
+              </button>
+              
+              <button
+                onClick={() => setGameMode('ai')}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-colors text-lg"
+              >
+                <Cpu size={24} />
+                vs Computer (AI)
+              </button>
+            </div>
+            
+            <div className="mt-6 bg-slate-700 p-4 rounded-lg text-slate-300 text-sm">
+              <p className="font-bold text-white mb-2">Game Modes:</p>
+              <p className="mb-1">🎮 <strong>2 Players:</strong> Play with a friend locally</p>
+              <p>🤖 <strong>vs Computer:</strong> Practice against AI</p>
+            </div>
           </div>
         </div>
+        
+        <footer className="bg-slate-800 border-t border-slate-700 py-4">
+          <div className="container mx-auto px-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
+              <span>from</span>
+              <span className="font-semibold text-slate-300">Musfirah</span>
+              <span className="text-xl">🦋</span>
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-4xl w-full">
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2">
-            <Crown className="text-yellow-400" size={36} />
-            Chess Game
-            {gameMode === 'ai' && <Cpu className="text-purple-400" size={32} />}
-          </h1>
-          <p className="text-slate-300">
-            {gameMode === 'ai' ? 'Playing vs Computer' : '2 Players Mode'}
-          </p>
-          <p className="text-slate-300 mt-1">
-            Current Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>
-              {currentPlayer.toUpperCase()}
-            </span>
-            {isThinking && <span className="text-purple-400 ml-2 animate-pulse">🤔 AI is thinking...</span>}
-          </p>
-        </div>
-
-        {gameOver && (
-          <div className="bg-green-600 text-white px-6 py-3 rounded-lg mb-4 text-center font-bold text-xl">
-            Game Over! {winner?.toUpperCase()} Wins! 🎉
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      <div className="flex-grow flex items-center justify-center p-4">
+        <div className="max-w-4xl w-full">
+          <div className="text-center mb-6">
+            <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2">
+              <Crown className="text-yellow-400" size={36} />
+              Chess Game
+              {gameMode === 'ai' && <Cpu className="text-purple-400" size={32} />}
+            </h1>
+            <p className="text-slate-300">
+              {gameMode === 'ai' ? 'Playing vs Computer' : '2 Players Mode'}
+            </p>
+            <p className="text-slate-300 mt-1">
+              Current Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>
+                {currentPlayer.toUpperCase()}
+              </span>
+              {isThinking && <span className="text-purple-400 ml-2 animate-pulse">🤔 AI is thinking...</span>}
+            </p>
           </div>
-        )}
 
-        <div className="flex flex-col md:flex-row gap-4 items-start justify-center">
-          <div className="bg-slate-800 p-4 rounded-lg w-full md:w-32">
-            <h3 className="text-white font-bold mb-2 text-sm">Captured</h3>
-            <div className="space-y-2">
-              <div>
-                <p className="text-slate-400 text-xs mb-1">White</p>
-                <div className="flex flex-wrap gap-1">
-                  {capturedPieces.white.map((piece, i) => (
-                    <span key={i} className="text-white text-xl">{getPieceSymbol(piece)}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-slate-400 text-xs mb-1">Black</p>
-                <div className="flex flex-wrap gap-1">
-                  {capturedPieces.black.map((piece, i) => (
-                    <span key={i} className="text-slate-800 text-xl">{getPieceSymbol(piece)}</span>
-                  ))}
-                </div>
-              </div>
+          {gameOver && (
+            <div className="bg-green-600 text-white px-6 py-3 rounded-lg mb-4 text-center font-bold text-xl">
+              Game Over! {winner?.toUpperCase()} Wins! 🎉
             </div>
-          </div>
+          )}
 
-          <div className="bg-slate-800 p-4 rounded-lg shadow-2xl">
-            <div className="grid grid-cols-8 gap-0 border-4 border-slate-700">
-              {board.map((row, rowIndex) => (
-                row.map((piece, colIndex) => {
-                  const isLight = (rowIndex + colIndex) % 2 === 0;
-                  const isSelected = selectedSquare && selectedSquare[0] === rowIndex && selectedSquare[1] === colIndex;
-                  const isValidMove = isValidMoveSquare(rowIndex, colIndex);
-                  
-                  return (
+          {promotionSquare && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-slate-800 p-6 rounded-xl shadow-2xl">
+                <h3 className="text-white text-xl font-bold mb-4 text-center">Promote Pawn</h3>
+                <div className="flex gap-4">
+                  {['queen', 'rook', 'bishop', 'knight'].map(pieceType => (
                     <button
-                      key={`${rowIndex}-${colIndex}`}
-                      onClick={() => handleSquareClick(rowIndex, colIndex)}
-                      disabled={isThinking}
-                      className={`
-                        w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-3xl sm:text-5xl font-bold
-                        transition-all duration-200 relative
-                        ${isLight ? 'bg-amber-100' : 'bg-amber-700'}
-                        ${isSelected ? 'ring-4 ring-blue-500' : ''}
-                        ${isValidMove ? 'ring-4 ring-green-400' : ''}
-                        ${isThinking ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110'}
-                      `}
+                      key={pieceType}
+                      onClick={() => promotePawn(promotionSquare.row, promotionSquare.col, pieceType)}
+                      className="bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors text-5xl"
                     >
-                      <span className={piece?.color === 'white' ? 'text-white drop-shadow-lg' : 'text-slate-900'}>
-                        {getPieceSymbol(piece)}
-                      </span>
-                      {isValidMove && !piece && (
-                        <div className="absolute w-3 h-3 bg-green-500 rounded-full opacity-60" />
-                      )}
+                      {getPieceSymbol({ type: pieceType, color: currentPlayer })}
                     </button>
-                  );
-                })
-              ))}
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col md:flex-row gap-4 items-start justify-center">
+            <div className="bg-slate-800 p-4 rounded-lg w-full md:w-32">
+              <h3 className="text-white font-bold mb-2 text-sm">Captured</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-slate-400 text-xs mb-1">White</p>
+                  <div className="flex flex-wrap gap-1">
+                    {capturedPieces.white.map((piece, i) => (
+                      <span key={i} className="text-white text-xl">{getPieceSymbol(piece)}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-slate-400 text-xs mb-1">Black</p>
+                  <div className="flex flex-wrap gap-1">
+                    {capturedPieces.black.map((piece, i) => (
+                      <span key={i} className="text-slate-800 text-xl">{getPieceSymbol(piece)}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-800 p-4 rounded-lg shadow-2xl">
+              <div className="grid grid-cols-8 gap-0 border-4 border-slate-700">
+                {board.map((row, rowIndex) => (
+                  row.map((piece, colIndex) => {
+                    const isLight = (rowIndex + colIndex) % 2 === 0;
+                    const isSelected = selectedSquare && selectedSquare[0] === rowIndex && selectedSquare[1] === colIndex;
+                    const isValidMove = isValidMoveSquare(rowIndex, colIndex);
+                    
+                    return (
+                      <button
+                        key={`${rowIndex}-${colIndex}`}
+                        onClick={() => handleSquareClick(rowIndex, colIndex)}
+                        disabled={isThinking || promotionSquare}
+                        className={`
+                          w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-3xl sm:text-5xl font-bold
+                          transition-all duration-200 relative
+                          ${isLight ? 'bg-amber-100' : 'bg-amber-700'}
+                          ${isSelected ? 'ring-4 ring-blue-500' : ''}
+                          ${isValidMove ? 'ring-4 ring-green-400' : ''}
+                          ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110'}
+                        `}
+                      >
+                        <span className={piece?.color === 'white' ? 'text-white drop-shadow-lg' : 'text-slate-900'}>
+                          {getPieceSymbol(piece)}
+                        </span>
+                        {isValidMove && !piece && (
+                          <div className="absolute w-3 h-3 bg-green-500 rounded-full opacity-60" />
+                        )}
+                      </button>
+                    );
+                  })
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="text-center mt-6 flex gap-3 justify-center">
-          <button
-            onClick={() => setGameMode(null)}
-            className="bg-slate-600 hover:bg-slate-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
-          >
-            Change Mode
-          </button>
-          <button
-            onClick={initializeBoard}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
-          >
-            <RotateCcw size={20} />
-            New Game
-          </button>
-        </div>
+          <div className="text-center mt-6 flex gap-3 justify-center">
+            <button
+              onClick={() => setGameMode(null)}
+              className="bg-slate-600 hover:bg-slate-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+            >
+              Change Mode
+            </button>
+            <button
+              onClick={initializeBoard}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
+            >
+              <RotateCcw size={20} />
+              New Game
+            </button>
+          </div>
 
-        <div className="mt-6 bg-slate-800 p-4 rounded-lg text-slate-300 text-sm">
-          <h3 className="font-bold text-white mb-2">How to Play:</h3>
-          <ul className="space-y-1">
-            <li>• Click a piece to select it (green highlights show valid moves)</li>
-            <li>• Click a highlighted square to move</li>
-            {gameMode === 'ai' && <li>• You are playing as WHITE against the computer (BLACK)</li>}
-            <li>• Capture the opponent's King to win!</li>
-          </ul>
+          <div className="mt-6 bg-slate-800 p-4 rounded-lg text-slate-300 text-sm">
+            <h3 className="font-bold text-white mb-2">How to Play:</h3>
+            <ul className="space-y-1">
+              <li>• Click a piece to select it (green highlights show valid moves)</li>
+              <li>• Click a highlighted square to move</li>
+              {gameMode === 'ai' && <li>• You are playing as WHITE against the computer (BLACK)</li>}
+              <li>• Capture the opponent's King to win!</li>
+              <li>• Pawns promote when reaching the last rank - choose your piece!</li>
+            </ul>
+          </div>
         </div>
       </div>
-              <footer style={{
-        textAlign: 'center',
-        padding: '20px',
-        marginTop: '30px',
-        backgroundColor: '#f8f9fa',
-        borderTop: '2px solid #e0e0e0',
-        width: '100%'
-      }}>
-        <p style={{ 
-          margin: '8px 0', 
-          fontSize: '16px',
-          color: '#333'
-        }}>
-          ♟️ Built with ❤️ by <strong>MUSFIRAH</strong>
-        </p>
-        <p style={{ 
-          margin: '5px 0', 
-          fontSize: '14px',
-          color: '#666'
-        }}>
-          <a 
-            href="https://github.com/MUSFIRAH-dev/ChessGame" 
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ 
-              color: '#0366d6',
-              textDecoration: 'none',
-              fontWeight: '500'
-            }}
-          >
-            View on GitHub
-          </a>
-          {' • '}
-          <a 
-            href="https://github.com/MUSFIRAH-dev" 
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ 
-              color: '#0366d6',
-              textDecoration: 'none',
-              fontWeight: '500'
-            }}
-          >
-            @MUSFIRAH-dev
-          </a>
-        </p>
-        <p style={{
-          margin: '5px 0',
-          fontSize: '12px',
-          color: '#999'
-        }}>
-          React • JavaScript • Vercel
-        </p>
+      
+      <footer className="bg-slate-800 border-t border-slate-700 py-4 mt-8">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
+            <span>from</span>
+            <span className="font-semibold text-slate-300">Musfirah</span>
+            <span className="text-xl">🦋</span>
+          </div>
+        </div>
       </footer>
-      </div>
+    </div>
   );
 };
 
