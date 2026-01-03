@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Crown, RotateCcw, User, Cpu } from 'lucide-react';
+import { Crown, RotateCcw, User, Cpu,Palette } from 'lucide-react';
 
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
@@ -12,7 +12,40 @@ const ChessGame = () => {
   const [gameMode, setGameMode] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
   const [promotionSquare, setPromotionSquare] = useState(null);
-
+const [theme, setTheme] = useState('classic');
+const [showThemePanel, setShowThemePanel] = useState(false);
+  const themes = {
+  classic: {
+    name: 'Classic Wood',
+    light: 'bg-[#f0d9b5]',
+    dark: 'bg-[#b58863]',
+    icon: '🪵'
+  },
+  ocean: {
+    name: 'Ocean Blue',
+    light: 'bg-[#e8f4f8]',
+    dark: 'bg-[#4a90a4]',
+    icon: '🌊'
+  },
+  forest: {
+    name: 'Forest Green',
+    light: 'bg-[#e8f5e9]',
+    dark: 'bg-[#66bb6a]',
+    icon: '🌲'
+  },
+  purple: {
+    name: 'Purple Royale',
+    light: 'bg-[#f3e5f5]',
+    dark: 'bg-[#9c27b0]',
+    icon: '👑'
+  },
+  dark: {
+    name: 'Dark Mode',
+    light: 'bg-[#4a5568]',
+    dark: 'bg-[#1a202c]',
+    icon: '🌙'
+  }
+};
   useEffect(() => {
     if (gameMode) {
       initializeBoard();
@@ -467,13 +500,17 @@ const ChessGame = () => {
                         className={`
                           w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-3xl sm:text-5xl font-bold
                           transition-all duration-200 relative
-                          ${isLight ? 'bg-amber-100' : 'bg-amber-700'}
+                          ${isLight ? themes[theme].light : themes[theme].dark}
                           ${isSelected ? 'ring-4 ring-blue-500' : ''}
                           ${isValidMove ? 'ring-4 ring-green-400' : ''}
                           ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110'}
                         `}
                       >
-                        <span className={piece?.color === 'white' ? 'text-white drop-shadow-lg' : 'text-slate-900'}>
+                        <span className={`
+  ${piece?.color === 'white' 
+    ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.9)]' 
+    : 'text-slate-900 drop-shadow-[0_0_3px_rgba(255,255,255,0.7)]'}
+`}>
                           {getPieceSymbol(piece)}
                         </span>
                         {isValidMove && !piece && (
@@ -513,6 +550,41 @@ const ChessGame = () => {
               <li>• Pawns promote when reaching the last rank - choose your piece!</li>
             </ul>
           </div>
+
+                {/* Floating Theme Button */}
+<button
+  onClick={() => setShowThemePanel(!showThemePanel)}
+  className="fixed bottom-24 right-6 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 animate-pulse"
+>
+  <Palette size={28} />
+</button>
+
+{/* Theme Panel */}
+{showThemePanel && (
+  <div className="fixed right-6 bottom-40 bg-slate-800 rounded-xl shadow-2xl p-4 z-40 border-2 border-slate-700">
+    <h3 className="text-white font-bold mb-3 text-center">Choose Theme</h3>
+    <div className="space-y-2">
+      {Object.entries(themes).map(([key, t]) => (
+        <button
+          key={key}
+          onClick={() => {
+            setTheme(key);
+            setShowThemePanel(false);
+          }}
+          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+            theme === key 
+              ? 'bg-blue-600 text-white' 
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          <span className="text-2xl">{t.icon}</span>
+          <span className="font-semibold">{t.name}</span>
+          {theme === key && <span className="ml-auto">✓</span>}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
         </div>
       </div>
       
