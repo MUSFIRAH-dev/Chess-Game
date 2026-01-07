@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Crown, RotateCcw, User, Cpu,Palette } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
@@ -417,6 +418,7 @@ const [showThemePanel, setShowThemePanel] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      <Analytics />
       <div className="flex-grow flex items-center justify-center p-4">
         <div className="max-w-4xl w-full">
           <div className="text-center mb-6">
