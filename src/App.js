@@ -372,8 +372,13 @@ const [showThemePanel, setShowThemePanel] = useState(false);
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl">
             <div className="text-center mb-8">
-              <Crown className="text-yellow-400 mx-auto mb-4" size={64} />
-              <h1 className="text-4xl font-bold text-white mb-2">ChessX</h1>
+              <img 
+  src="/Untitled_design__1_-removebg-preview.png" 
+  alt="ChessX Logo"
+  className="w-32 h-32 mx-auto mb-4 object-contain"
+/>
+<h1 className="text-4xl font-bold text-white mb-2">ChessX</h1>
+              
               <p className="text-slate-300">Choose your game mode</p>
             </div>
             
