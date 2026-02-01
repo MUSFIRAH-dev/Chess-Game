@@ -371,13 +371,17 @@ const [showThemePanel, setShowThemePanel] = useState(false);
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl">
-            <div className="text-center mb-8">
-              <img 
+         <div className="text-center mb-8">
   <Crown className="text-yellow-400 mx-auto mb-4" size={64} />
-<h1 className="text-4xl font-bold text-white mb-2">ChessX</h1>
+  <h1 className="text-4xl font-bold text-white mb-2">ChessX</h1>
+  <p className="text-slate-300">Choose your game mode</p>
+</div>   
               
-              <p className="text-slate-300">Choose your game mode</p>
-            </div>
+  
+
+              
+              
+            
             
             <div className="space-y-4">
               <button
