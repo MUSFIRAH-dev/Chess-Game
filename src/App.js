@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Crown, RotateCcw, User, Cpu, Palette } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Crown, RotateCcw, User, Cpu, Palette, Volume2, VolumeX, Undo, Clock, Trophy, TrendingUp } from 'lucide-react';
 
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
@@ -16,6 +16,27 @@ const ChessGame = () => {
   const [isDraw, setIsDraw] = useState(false);
   const [theme, setTheme] = useState('classic');
   const [showThemePanel, setShowThemePanel] = useState(false);
+  
+  // NEW FEATURES
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [moveHistory, setMoveHistory] = useState([]);
+  const [boardHistory, setBoardHistory] = useState([]);
+  const [aiDifficulty, setAiDifficulty] = useState('medium');
+  const [showMoveHistory, setShowMoveHistory] = useState(false);
+  const [whiteTime, setWhiteTime] = useState(600); // 10 minutes
+  const [blackTime, setBlackTime] = useState(600);
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [stats, setStats] = useState({
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    winStreak: 0
+  });
+  const [showStats, setShowStats] = useState(false);
+
+  const audioContextRef = useRef(null);
 
   const themes = {
     classic: {
@@ -47,7 +68,174 @@ const ChessGame = () => {
       light: 'bg-[#4a5568]',
       dark: 'bg-[#1a202c]',
       icon: '🌙'
+    },
+    neon: {
+      name: 'Neon Cyber',
+      light: 'bg-[#1a1a2e]',
+      dark: 'bg-[#0f3460]',
+      icon: '🌃'
     }
+  };
+
+  // Sound Effects
+  const playSound = (type) => {
+    if (!soundEnabled) return;
+    
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    const ctx = audioContextRef.current;
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    switch(type) {
+      case 'move':
+        oscillator.frequency.value = 300;
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.1);
+        break;
+      case 'capture':
+        oscillator.frequency.value = 150;
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.15);
+        break;
+      case 'check':
+        oscillator.frequency.value = 600;
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.2);
+        break;
+      case 'win':
+        [400, 500, 600].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.15 + 0.2);
+          osc.start(ctx.currentTime + i * 0.15);
+          osc.stop(ctx.currentTime + i * 0.15 + 0.2);
+        });
+        break;
+      case 'error':
+        oscillator.frequency.value = 100;
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.1);
+        break;
+    }
+  };
+
+  // Haptic Feedback
+  const vibrate = (pattern) => {
+    if (navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  };
+
+  // Timer Effect
+  useEffect(() => {
+    if (!timerEnabled || !timerRunning || gameOver) return;
+    
+    const interval = setInterval(() => {
+      if (currentPlayer === 'white') {
+        setWhiteTime(prev => {
+          if (prev <= 1) {
+            setGameOver(true);
+            setWinner('black');
+            updateStats('black');
+            playSound('win');
+            return 0;
+          }
+          return prev - 1;
+        });
+      } else {
+        setBlackTime(prev => {
+          if (prev <= 1) {
+            setGameOver(true);
+            setWinner('white');
+            updateStats('white');
+            playSound('win');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [timerEnabled, timerRunning, currentPlayer, gameOver]);
+
+  // Load saved game and stats
+  useEffect(() => {
+    const savedGame = localStorage.getItem('chessGame');
+    const savedStats = localStorage.getItem('chessStats');
+    
+    if (savedStats) {
+      setStats(JSON.parse(savedStats));
+    }
+    
+    if (savedGame) {
+      const gameData = JSON.parse(savedGame);
+      // Optionally restore game state
+    }
+  }, []);
+
+  // Save game state
+  useEffect(() => {
+    if (gameMode && board.length > 0) {
+      localStorage.setItem('chessGame', JSON.stringify({
+        board,
+        currentPlayer,
+        gameMode,
+        capturedPieces,
+        moveHistory,
+        aiDifficulty,
+        theme
+      }));
+    }
+  }, [board, currentPlayer, gameMode, capturedPieces, moveHistory, aiDifficulty, theme]);
+
+  // Save stats
+  useEffect(() => {
+    localStorage.setItem('chessStats', JSON.stringify(stats));
+  }, [stats]);
+
+  const updateStats = (winningPlayer) => {
+    setStats(prev => {
+      const newStats = { ...prev };
+      newStats.gamesPlayed += 1;
+      
+      if (isDraw) {
+        newStats.draws += 1;
+        newStats.winStreak = 0;
+      } else if (winningPlayer === 'white' && gameMode === 'ai') {
+        newStats.wins += 1;
+        newStats.winStreak += 1;
+      } else if (winningPlayer === 'black' && gameMode === 'ai') {
+        newStats.losses += 1;
+        newStats.winStreak = 0;
+      }
+      
+      return newStats;
+    });
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -61,7 +249,7 @@ const ChessGame = () => {
       setIsThinking(true);
       const timeout = setTimeout(() => {
         makeAIMove();
-      }, 500);
+      }, aiDifficulty === 'easy' ? 300 : aiDifficulty === 'medium' ? 500 : 800);
       return () => clearTimeout(timeout);
     }
   }, [currentPlayer, gameMode, gameOver, promotionSquare]);
@@ -89,6 +277,7 @@ const ChessGame = () => {
     setupRow(7, 'white');
     
     setBoard(newBoard);
+    setBoardHistory([JSON.parse(JSON.stringify(newBoard))]);
     setCurrentPlayer('white');
     setGameOver(false);
     setWinner(null);
@@ -99,6 +288,10 @@ const ChessGame = () => {
     setPromotionSquare(null);
     setIsCheck(false);
     setIsDraw(false);
+    setMoveHistory([]);
+    setWhiteTime(600);
+    setBlackTime(600);
+    setTimerRunning(false);
   };
 
   const getPieceSymbol = (piece) => {
@@ -119,6 +312,40 @@ const ChessGame = () => {
     return values[type] || 0;
   };
 
+  const getSquareName = (row, col) => {
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+    return files[col] + ranks[row];
+  };
+
+  const addMoveToHistory = (fromRow, fromCol, toRow, toCol, piece, captured) => {
+    const from = getSquareName(fromRow, fromCol);
+    const to = getSquareName(toRow, toCol);
+    const pieceSymbol = getPieceSymbol(piece);
+    const captureSymbol = captured ? 'x' : '→';
+    const moveNotation = `${pieceSymbol} ${from} ${captureSymbol} ${to}`;
+    setMoveHistory(prev => [...prev, { notation: moveNotation, player: currentPlayer }]);
+  };
+
+  const undoMove = () => {
+    if (boardHistory.length <= 1 || gameOver) return;
+    
+    vibrate(30);
+    playSound('move');
+    
+    const newHistory = [...boardHistory];
+    newHistory.pop(); // Remove current state
+    const previousBoard = newHistory[newHistory.length - 1];
+    
+    setBoardHistory(newHistory);
+    setBoard(JSON.parse(JSON.stringify(previousBoard)));
+    setMoveHistory(prev => prev.slice(0, -1));
+    setCurrentPlayer(prev => prev === 'white' ? 'black' : 'white');
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setIsCheck(false);
+  };
+
   const checkPromotion = (row, piece) => {
     if (piece.type === 'pawn') {
       if ((piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7)) {
@@ -134,13 +361,21 @@ const ChessGame = () => {
     setBoard(newBoard);
     setPromotionSquare(null);
     
+    playSound('move');
+    vibrate(50);
+    
     const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
     
     if (isKingInCheck(newBoard, nextPlayer)) {
       setIsCheck(true);
+      playSound('check');
+      vibrate([50, 30, 50]);
       if (isCheckmate(newBoard, nextPlayer)) {
         setGameOver(true);
         setWinner(currentPlayer);
+        updateStats(currentPlayer);
+        playSound('win');
+        vibrate([100, 50, 100, 50, 100]);
         return;
       }
     } else {
@@ -148,11 +383,15 @@ const ChessGame = () => {
       if (isStalemate(newBoard, nextPlayer)) {
         setGameOver(true);
         setIsDraw(true);
+        updateStats(null);
+        playSound('win');
+        vibrate([100, 50, 100]);
         return;
       }
     }
     
     setCurrentPlayer(nextPlayer);
+    if (timerEnabled) setTimerRunning(true);
   };
 
   const findKing = (testBoard, color) => {
@@ -313,14 +552,36 @@ const ChessGame = () => {
     const [fromR, fromC] = from;
     const [toR, toC] = to;
     let score = 0;
+    
     const targetPiece = testBoard[toR][toC];
     if (targetPiece) {
       score += getPieceValue(targetPiece.type) * 10;
     }
+    
+    // Position evaluation
     const centerDistance = Math.abs(toR - 3.5) + Math.abs(toC - 3.5);
     score += (7 - centerDistance) * 0.5;
+    
+    // Pawn advancement
     if (move.piece.type === 'pawn') score += (7 - toR) * 0.3;
-    score += Math.random() * 2;
+    
+    // Check if move gives check
+    const testBoardAfterMove = testBoard.map(r => [...r]);
+    testBoardAfterMove[toR][toC] = testBoardAfterMove[fromR][fromC];
+    testBoardAfterMove[fromR][fromC] = null;
+    if (isKingInCheck(testBoardAfterMove, 'white')) {
+      score += 5;
+    }
+    
+    // Difficulty adjustment
+    if (aiDifficulty === 'easy') {
+      score = Math.random() * 100; // Mostly random
+    } else if (aiDifficulty === 'medium') {
+      score += Math.random() * 5; // Some randomness
+    } else {
+      score += Math.random() * 2; // Minimal randomness
+    }
+    
     return score;
   };
 
@@ -329,11 +590,16 @@ const ChessGame = () => {
     if (possibleMoves.length === 0) {
       setGameOver(true);
       setWinner('white');
+      updateStats('white');
       setIsThinking(false);
+      playSound('win');
+      vibrate([100, 50, 100]);
       return;
     }
+    
     let bestMove = possibleMoves[0];
     let bestScore = -Infinity;
+    
     possibleMoves.forEach(move => {
       const score = evaluateMove(move, board);
       if (score > bestScore) {
@@ -341,17 +607,28 @@ const ChessGame = () => {
         bestMove = move;
       }
     });
+    
     const { from, to } = bestMove;
     const [fromR, fromC] = from;
     const [toR, toC] = to;
+    
     const newBoard = board.map(row => [...row]);
     const movingPiece = newBoard[fromR][fromC];
     const capturedPiece = newBoard[toR][toC];
+    
     if (capturedPiece) {
       const newCaptured = { ...capturedPieces };
       newCaptured.black.push(capturedPiece);
       setCapturedPieces(newCaptured);
+      playSound('capture');
+      vibrate(50);
+    } else {
+      playSound('move');
+      vibrate(30);
     }
+    
+    addMoveToHistory(fromR, fromC, toR, toC, movingPiece, capturedPiece);
+    
     newBoard[toR][toC] = movingPiece;
     newBoard[fromR][fromC] = null;
     
@@ -360,13 +637,19 @@ const ChessGame = () => {
     }
     
     setBoard(newBoard);
+    setBoardHistory(prev => [...prev, JSON.parse(JSON.stringify(newBoard))]);
     
     if (isKingInCheck(newBoard, 'white')) {
       setIsCheck(true);
+      playSound('check');
+      vibrate([50, 30, 50]);
       if (isCheckmate(newBoard, 'white')) {
         setGameOver(true);
         setWinner('black');
+        updateStats('black');
         setIsThinking(false);
+        playSound('win');
+        vibrate([100, 50, 100, 50, 100]);
         return;
       }
     } else {
@@ -374,7 +657,10 @@ const ChessGame = () => {
       if (isStalemate(newBoard, 'white')) {
         setGameOver(true);
         setIsDraw(true);
+        updateStats(null);
         setIsThinking(false);
+        playSound('win');
+        vibrate([100, 50, 100]);
         return;
       }
     }
@@ -386,21 +672,37 @@ const ChessGame = () => {
   const handleSquareClick = (row, col) => {
     if (gameOver || promotionSquare || (gameMode === 'ai' && currentPlayer === 'black')) return;
 
+    // Start timer on first move
+    if (timerEnabled && !timerRunning && moveHistory.length === 0) {
+      setTimerRunning(true);
+    }
+
     if (selectedSquare) {
       const [selectedRow, selectedCol] = selectedSquare;
       const isValid = validMoves.some(([r, c]) => r === row && c === col);
+      
       if (isValid) {
         const newBoard = board.map(row => [...row]);
         const movingPiece = newBoard[selectedRow][selectedCol];
         const capturedPiece = newBoard[row][col];
+        
         if (capturedPiece) {
           const newCaptured = { ...capturedPieces };
           newCaptured[currentPlayer].push(capturedPiece);
           setCapturedPieces(newCaptured);
+          playSound('capture');
+          vibrate(50);
+        } else {
+          playSound('move');
+          vibrate(30);
         }
+        
+        addMoveToHistory(selectedRow, selectedCol, row, col, movingPiece, capturedPiece);
+        
         newBoard[row][col] = movingPiece;
         newBoard[selectedRow][selectedCol] = null;
         setBoard(newBoard);
+        setBoardHistory(prev => [...prev, JSON.parse(JSON.stringify(newBoard))]);
         
         if (checkPromotion(row, movingPiece)) {
           setPromotionSquare({ row, col });
@@ -409,11 +711,16 @@ const ChessGame = () => {
           
           if (isKingInCheck(newBoard, nextPlayer)) {
             setIsCheck(true);
+            playSound('check');
+            vibrate([50, 30, 50]);
             if (isCheckmate(newBoard, nextPlayer)) {
               setGameOver(true);
               setWinner(currentPlayer);
+              updateStats(currentPlayer);
               setSelectedSquare(null);
               setValidMoves([]);
+              playSound('win');
+              vibrate([100, 50, 100, 50, 100]);
               return;
             }
           } else {
@@ -421,24 +728,32 @@ const ChessGame = () => {
             if (isStalemate(newBoard, nextPlayer)) {
               setGameOver(true);
               setIsDraw(true);
+              updateStats(null);
               setSelectedSquare(null);
               setValidMoves([]);
+              playSound('win');
+              vibrate([100, 50, 100]);
               return;
             }
           }
           
           setCurrentPlayer(nextPlayer);
         }
+        
         setSelectedSquare(null);
         setValidMoves([]);
       } else if (board[row][col]?.color === currentPlayer) {
+        vibrate(20);
         setSelectedSquare([row, col]);
         setValidMoves(getValidMovesForPiece(row, col));
       } else {
+        vibrate(10);
+        playSound('error');
         setSelectedSquare(null);
         setValidMoves([]);
       }
     } else if (board[row][col]?.color === currentPlayer) {
+      vibrate(20);
       setSelectedSquare([row, col]);
       setValidMoves(getValidMovesForPiece(row, col));
     }
@@ -462,7 +777,7 @@ const ChessGame = () => {
             <div className="space-y-4">
               <button
                 onClick={() => setGameMode('pvp')}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-colors text-lg"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
               >
                 <User size={24} />
                 2 Players (Local)
@@ -470,10 +785,18 @@ const ChessGame = () => {
 
               <button
                 onClick={() => setGameMode('ai')}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-colors text-lg"
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
               >
                 <Cpu size={24} />
                 vs Computer (AI)
+              </button>
+
+              <button
+                onClick={() => setShowStats(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
+              >
+                <Trophy size={24} />
+                View Statistics
               </button>
             </div>
 
@@ -484,6 +807,63 @@ const ChessGame = () => {
             </div>
           </div>
         </div>
+
+        {showStats && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Trophy className="text-yellow-400" />
+                  Your Stats
+                </h2>
+                <button
+                  onClick={() => setShowStats(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-slate-700 p-4 rounded-lg">
+                  <p className="text-slate-400 text-sm">Games Played</p>
+                  <p className="text-3xl font-bold text-white">{stats.gamesPlayed}</p>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-green-600 bg-opacity-20 border-2 border-green-600 p-3 rounded-lg text-center">
+                    <p className="text-green-400 text-sm font-semibold">Wins</p>
+                    <p className="text-2xl font-bold text-white">{stats.wins}</p>
+                  </div>
+                  
+                  <div className="bg-red-600 bg-opacity-20 border-2 border-red-600 p-3 rounded-lg text-center">
+                    <p className="text-red-400 text-sm font-semibold">Losses</p>
+                    <p className="text-2xl font-bold text-white">{stats.losses}</p>
+                  </div>
+                  
+                  <div className="bg-yellow-600 bg-opacity-20 border-2 border-yellow-600 p-3 rounded-lg text-center">
+                    <p className="text-yellow-400 text-sm font-semibold">Draws</p>
+                    <p className="text-2xl font-bold text-white">{stats.draws}</p>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-700 p-4 rounded-lg">
+                  <p className="text-slate-400 text-sm">Current Win Streak</p>
+                  <p className="text-3xl font-bold text-yellow-400 flex items-center gap-2">
+                    🔥 {stats.winStreak}
+                  </p>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => setShowStats(false)}
+                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold transition-all active:scale-95"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
 
         <footer className="bg-slate-800 border-t border-slate-700 py-4">
           <div className="container mx-auto px-4 text-center">
@@ -499,16 +879,24 @@ const ChessGame = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
-      <div className="flex-grow p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2">
+      <div className="flex-grow p-3 sm:p-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-4">
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2">
               <Crown className="text-yellow-400" size={36} />
               ChessX
               {gameMode === 'ai' && <Cpu className="text-purple-400" size={32} />}
             </h1>
-            <p className="text-slate-300">
+            <p className="text-slate-300 text-sm sm:text-base">
               {gameMode === 'ai' ? 'Playing vs Computer' : '2 Players Mode'}
+              {gameMode === 'ai' && (
+                <span className={`ml-2 px-2 py-1 rounded text-xs font-bold ${
+                  aiDifficulty === 'easy' ? 'bg-green-600' : 
+                  aiDifficulty === 'medium' ? 'bg-yellow-600' : 'bg-red-600'
+                }`}>
+                  {aiDifficulty.toUpperCase()}
+                </span>
+              )}
             </p>
             <p className="text-slate-300 mt-1">
               Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>
@@ -517,10 +905,21 @@ const ChessGame = () => {
               {isCheck && <span className="text-red-500 ml-2 font-bold">⚠️ CHECK!</span>}
               {isThinking && <span className="text-purple-400 ml-2 animate-pulse">🤔 AI thinking...</span>}
             </p>
+            
+            {timerEnabled && (
+              <div className="flex justify-center gap-4 mt-2">
+                <div className={`px-3 py-1 rounded ${currentPlayer === 'white' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                  <span className="text-white font-mono font-bold">{formatTime(whiteTime)}</span>
+                </div>
+                <div className={`px-3 py-1 rounded ${currentPlayer === 'black' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                  <span className="text-white font-mono font-bold">{formatTime(blackTime)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {gameOver && !isDraw && (
-            <div className="bg-green-600 text-white px-6 py-3 rounded-lg mb-4 text-center font-bold text-xl">
+            <div className="bg-green-600 text-white px-6 py-3 rounded-lg mb-4 text-center font-bold text-xl animate-pulse">
               Checkmate! {winner?.toUpperCase()} Wins! 🎉
             </div>
           )}
@@ -532,7 +931,7 @@ const ChessGame = () => {
           )}
 
           {promotionSquare && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
               <div className="bg-slate-800 p-6 rounded-xl shadow-2xl">
                 <h3 className="text-white text-xl font-bold mb-4 text-center">Promote Pawn</h3>
                 <div className="flex gap-4">
@@ -540,7 +939,7 @@ const ChessGame = () => {
                     <button
                       key={pieceType}
                       onClick={() => promotionSquare && promotePawn(promotionSquare.row, promotionSquare.col, pieceType)}
-                      className="bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors text-5xl"
+                      className="bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-all active:scale-95 text-5xl"
                     >
                       {getPieceSymbol({ type: pieceType, color: currentPlayer })}
                     </button>
@@ -550,69 +949,198 @@ const ChessGame = () => {
             </div>
           )}
 
-          <div className="flex justify-center mb-6">
-            <div className="inline-block border-4 border-slate-700 bg-slate-800">
-              {board.map((row, rowIndex) => (
-                <div key={rowIndex} className="flex">
-                  {row.map((piece, colIndex) => {
-                    const isLight = (rowIndex + colIndex) % 2 === 0;
-                    const isSelected = selectedSquare && selectedSquare[0] === rowIndex && selectedSquare[1] === colIndex;
-                    const isValidMove = isValidMoveSquare(rowIndex, colIndex);
-                    return (
-                      <button
-                        key={`${rowIndex}-${colIndex}`}
-                        onClick={() => handleSquareClick(rowIndex, colIndex)}
-                        disabled={isThinking || !!promotionSquare}
-                        className={`
-                          w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-3xl sm:text-5xl font-bold
-                          transition-all duration-200 relative
-                          ${isLight ? themes[theme].light : themes[theme].dark}
-                          ${isSelected ? 'ring-4 ring-blue-500' : ''}
-                          ${isValidMove ? 'ring-4 ring-green-400' : ''}
-                          ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110'}
-                        `}
+          <div className="flex flex-col lg:flex-row gap-4 items-start justify-center">
+            {/* Move History Panel */}
+            {showMoveHistory && (
+              <div className="w-full lg:w-64 bg-slate-800 p-4 rounded-lg order-2 lg:order-1">
+                <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                  <TrendingUp size={20} />
+                  Move History
+                </h3>
+                <div className="max-h-96 overflow-y-auto space-y-1">
+                  {moveHistory.length === 0 ? (
+                    <p className="text-slate-400 text-sm text-center">No moves yet</p>
+                  ) : (
+                    moveHistory.map((move, idx) => (
+                      <div 
+                        key={idx}
+                        className={`text-sm p-2 rounded ${
+                          move.player === 'white' ? 'bg-slate-700' : 'bg-slate-600'
+                        }`}
                       >
-                        <span className={`
-                          ${piece?.color === 'white' 
-                            ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.9)]' 
-                            : 'text-slate-900 drop-shadow-[0_0_3px_rgba(255,255,255,0.7)]'}
-                        `}>
-                          {getPieceSymbol(piece)}
-                        </span>
-                        {isValidMove && !piece && (
-                          <div className="absolute w-3 h-3 bg-green-500 rounded-full opacity-60" />
-                        )}
-                      </button>
-                    );
-                  })}
+                        <span className="text-slate-400 mr-2">{idx + 1}.</span>
+                        <span className="text-white">{move.notation}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* Chess Board */}
+            <div className="flex justify-center order-1 lg:order-2">
+              <div className="inline-block border-4 border-slate-700 bg-slate-800 shadow-2xl">
+                {board.map((row, rowIndex) => (
+                  <div key={rowIndex} className="flex">
+                    {row.map((piece, colIndex) => {
+                      const isLight = (rowIndex + colIndex) % 2 === 0;
+                      const isSelected = selectedSquare && selectedSquare[0] === rowIndex && selectedSquare[1] === colIndex;
+                      const isValidMove = isValidMoveSquare(rowIndex, colIndex);
+                      return (
+                        <button
+                          key={`${rowIndex}-${colIndex}`}
+                          onClick={() => handleSquareClick(rowIndex, colIndex)}
+                          disabled={isThinking || !!promotionSquare}
+                          className={`
+                            w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-4xl sm:text-5xl font-bold
+                            transition-all duration-200 relative
+                            ${isLight ? themes[theme].light : themes[theme].dark}
+                            ${isSelected ? 'ring-4 ring-blue-500 scale-95' : ''}
+                            ${isValidMove ? 'ring-4 ring-green-400' : ''}
+                            ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110 active:scale-95'}
+                          `}
+                        >
+                          <span className={`
+                            ${piece?.color === 'white' 
+                              ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.9)]' 
+                              : 'text-slate-900 drop-shadow-[0_0_3px_rgba(255,255,255,0.7)]'}
+                          `}>
+                            {getPieceSymbol(piece)}
+                          </span>
+                          {isValidMove && !piece && (
+                            <div className="absolute w-4 h-4 bg-green-500 rounded-full opacity-70" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Captured Pieces Panel */}
+            <div className="w-full lg:w-64 bg-slate-800 p-4 rounded-lg order-3">
+              <h3 className="text-white font-bold mb-3">Captured Pieces</h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">White captured:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {capturedPieces.white.map((piece, idx) => (
+                      <span key={idx} className="text-2xl text-slate-900">
+                        {getPieceSymbol(piece)}
+                      </span>
+                    ))}
+                    {capturedPieces.white.length === 0 && (
+                      <span className="text-slate-600 text-sm">None</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-400 mb-1">Black captured:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {capturedPieces.black.map((piece, idx) => (
+                      <span key={idx} className="text-2xl text-white">
+                        {getPieceSymbol(piece)}
+                      </span>
+                    ))}
+                    {capturedPieces.black.length === 0 && (
+                      <span className="text-slate-600 text-sm">None</span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="text-center flex gap-3 justify-center mb-6">
+          <div className="text-center flex flex-wrap gap-2 justify-center mt-6">
             <button
               onClick={() => setGameMode(null)}
-              className="bg-slate-600 hover:bg-slate-700 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+              className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold transition-all active:scale-95"
             >
               Change Mode
             </button>
+            
             <button
               onClick={initializeBoard}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95"
             >
               <RotateCcw size={20} />
               New Game
             </button>
+            
+            <button
+              onClick={undoMove}
+              disabled={boardHistory.length <= 1 || gameOver || (gameMode === 'ai' && currentPlayer === 'black')}
+              className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Undo size={20} />
+              Undo
+            </button>
+            
+            <button
+              onClick={() => setShowMoveHistory(!showMoveHistory)}
+              className={`${showMoveHistory ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95`}
+            >
+              <TrendingUp size={20} />
+              History
+            </button>
+            
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`${soundEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95`}
+            >
+              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+            </button>
+            
+            <button
+              onClick={() => setTimerEnabled(!timerEnabled)}
+              className={`${timerEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95`}
+            >
+              <Clock size={20} />
+              Timer
+            </button>
           </div>
 
-          <div className="bg-slate-800 p-4 rounded-lg text-slate-300 text-sm mb-6">
+          {gameMode === 'ai' && (
+            <div className="mt-4 bg-slate-800 p-4 rounded-lg">
+              <h3 className="text-white font-bold mb-3">AI Difficulty</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setAiDifficulty('easy')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all active:scale-95 ${
+                    aiDifficulty === 'easy' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  😊 Easy
+                </button>
+                <button
+                  onClick={() => setAiDifficulty('medium')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all active:scale-95 ${
+                    aiDifficulty === 'medium' ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  🧐 Medium
+                </button>
+                <button
+                  onClick={() => setAiDifficulty('hard')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all active:scale-95 ${
+                    aiDifficulty === 'hard' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  😈 Hard
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-slate-800 p-4 rounded-lg text-slate-300 text-sm mt-4">
             <h3 className="font-bold text-white mb-2">How to Play:</h3>
             <ul className="space-y-1">
               <li>• Tap piece to select (green shows valid moves)</li>
               <li>• King in danger = CHECK warning ⚠️</li>
               <li>• King trapped = CHECKMATE (you win!) 🎉</li>
               <li>• No legal moves but safe = STALEMATE (draw) 🤝</li>
+              <li>• Use UNDO to take back your last move</li>
               {gameMode === 'ai' && <li>• You play as WHITE vs computer</li>}
             </ul>
           </div>
@@ -626,7 +1154,7 @@ const ChessGame = () => {
           </button>
 
           {showThemePanel && (
-            <div className="fixed right-6 bottom-40 bg-slate-800 rounded-xl shadow-2xl p-4 z-40 border-2 border-slate-700">
+            <div className="fixed right-6 bottom-40 bg-slate-800 rounded-xl shadow-2xl p-4 z-40 border-2 border-slate-700 max-h-96 overflow-y-auto">
               <h3 className="text-white font-bold mb-3 text-center">Choose Theme</h3>
               <div className="space-y-2">
                 {Object.entries(themes).map(([key, t]) => (
@@ -635,8 +1163,9 @@ const ChessGame = () => {
                     onClick={() => {
                       setTheme(key);
                       setShowThemePanel(false);
+                      vibrate(30);
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all active:scale-95 ${
                       theme === key 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
