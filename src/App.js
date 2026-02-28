@@ -879,18 +879,18 @@ const ChessGame = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
-      <div className="flex-grow p-3 sm:p-4">
+      <div className="flex-grow p-2 sm:p-3 md:p-4">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-4">
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2">
-              <Crown className="text-yellow-400" size={36} />
-              ChessX
-              {gameMode === 'ai' && <Cpu className="text-purple-400" size={32} />}
+          <div className="text-center mb-3 md:mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 md:mb-2 flex items-center justify-center gap-2">
+              <Crown className="text-yellow-400" size={28} />
+              <span className="sm:inline">ChessX</span>
+              {gameMode === 'ai' && <Cpu className="text-purple-400" size={24} />}
             </h1>
-            <p className="text-slate-300 text-sm sm:text-base">
-              {gameMode === 'ai' ? 'Playing vs Computer' : '2 Players Mode'}
+            <p className="text-slate-300 text-xs sm:text-sm md:text-base">
+              {gameMode === 'ai' ? 'vs Computer' : '2 Players'}
               {gameMode === 'ai' && (
-                <span className={`ml-2 px-2 py-1 rounded text-xs font-bold ${
+                <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
                   aiDifficulty === 'easy' ? 'bg-green-600' : 
                   aiDifficulty === 'medium' ? 'bg-yellow-600' : 'bg-red-600'
                 }`}>
@@ -898,20 +898,20 @@ const ChessGame = () => {
                 </span>
               )}
             </p>
-            <p className="text-slate-300 mt-1">
+            <p className="text-slate-300 mt-1 text-xs sm:text-sm">
               Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>
                 {currentPlayer.toUpperCase()}
               </span>
-              {isCheck && <span className="text-red-500 ml-2 font-bold">⚠️ CHECK!</span>}
-              {isThinking && <span className="text-purple-400 ml-2 animate-pulse">🤔 AI thinking...</span>}
+              {isCheck && <span className="text-red-500 ml-2 font-bold text-xs sm:text-sm">⚠️ CHECK!</span>}
+              {isThinking && <span className="text-purple-400 ml-2 animate-pulse text-xs sm:text-sm">🤔 Thinking...</span>}
             </p>
             
             {timerEnabled && (
-              <div className="flex justify-center gap-4 mt-2">
-                <div className={`px-3 py-1 rounded ${currentPlayer === 'white' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+              <div className="flex justify-center gap-2 md:gap-4 mt-1.5 md:mt-2">
+                <div className={`px-2 py-0.5 md:px-3 md:py-1 rounded text-xs md:text-sm ${currentPlayer === 'white' ? 'bg-blue-600' : 'bg-slate-700'}`}>
                   <span className="text-white font-mono font-bold">{formatTime(whiteTime)}</span>
                 </div>
-                <div className={`px-3 py-1 rounded ${currentPlayer === 'black' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                <div className={`px-2 py-0.5 md:px-3 md:py-1 rounded text-xs md:text-sm ${currentPlayer === 'black' ? 'bg-blue-600' : 'bg-slate-700'}`}>
                   <span className="text-white font-mono font-bold">{formatTime(blackTime)}</span>
                 </div>
               </div>
@@ -919,27 +919,27 @@ const ChessGame = () => {
           </div>
 
           {gameOver && !isDraw && (
-            <div className="bg-green-600 text-white px-6 py-3 rounded-lg mb-4 text-center font-bold text-xl animate-pulse">
+            <div className="bg-green-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg mb-3 md:mb-4 text-center font-bold text-sm sm:text-lg md:text-xl animate-pulse">
               Checkmate! {winner?.toUpperCase()} Wins! 🎉
             </div>
           )}
 
           {gameOver && isDraw && (
-            <div className="bg-yellow-600 text-white px-6 py-3 rounded-lg mb-4 text-center font-bold text-xl">
-              Stalemate! Game is a Draw! 🤝
+            <div className="bg-yellow-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg mb-3 md:mb-4 text-center font-bold text-sm sm:text-lg md:text-xl">
+              Stalemate! <span className="hidden sm:inline">Game is a </span>Draw! 🤝
             </div>
           )}
 
           {promotionSquare && (
-            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-              <div className="bg-slate-800 p-6 rounded-xl shadow-2xl">
-                <h3 className="text-white text-xl font-bold mb-4 text-center">Promote Pawn</h3>
-                <div className="flex gap-4">
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+              <div className="bg-slate-800 p-4 md:p-6 rounded-xl shadow-2xl">
+                <h3 className="text-white text-lg md:text-xl font-bold mb-3 md:mb-4 text-center">Promote Pawn</h3>
+                <div className="flex gap-3 md:gap-4">
                   {['queen', 'rook', 'bishop', 'knight'].map(pieceType => (
                     <button
                       key={pieceType}
                       onClick={() => promotionSquare && promotePawn(promotionSquare.row, promotionSquare.col, pieceType)}
-                      className="bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-all active:scale-95 text-5xl"
+                      className="bg-slate-700 hover:bg-slate-600 text-white p-3 md:p-4 rounded-lg transition-all active:scale-95 text-4xl md:text-5xl"
                     >
                       {getPieceSymbol({ type: pieceType, color: currentPlayer })}
                     </button>
@@ -949,26 +949,26 @@ const ChessGame = () => {
             </div>
           )}
 
-          <div className="flex flex-col lg:flex-row gap-4 items-start justify-center">
+          <div className="flex flex-col lg:flex-row gap-3 items-start justify-center">
             {/* Move History Panel */}
             {showMoveHistory && (
-              <div className="w-full lg:w-64 bg-slate-800 p-4 rounded-lg order-2 lg:order-1">
-                <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                  <TrendingUp size={20} />
-                  Move History
+              <div className="w-full lg:w-56 bg-slate-800 p-3 rounded-lg order-2 lg:order-1">
+                <h3 className="text-white font-bold mb-2 flex items-center gap-2 text-sm">
+                  <TrendingUp size={16} />
+                  Moves
                 </h3>
-                <div className="max-h-96 overflow-y-auto space-y-1">
+                <div className="max-h-60 overflow-y-auto space-y-1">
                   {moveHistory.length === 0 ? (
-                    <p className="text-slate-400 text-sm text-center">No moves yet</p>
+                    <p className="text-slate-400 text-xs text-center">No moves yet</p>
                   ) : (
                     moveHistory.map((move, idx) => (
                       <div 
                         key={idx}
-                        className={`text-sm p-2 rounded ${
+                        className={`text-xs p-1.5 rounded ${
                           move.player === 'white' ? 'bg-slate-700' : 'bg-slate-600'
                         }`}
                       >
-                        <span className="text-slate-400 mr-2">{idx + 1}.</span>
+                        <span className="text-slate-400 mr-1">{idx + 1}.</span>
                         <span className="text-white">{move.notation}</span>
                       </div>
                     ))
@@ -979,7 +979,7 @@ const ChessGame = () => {
 
             {/* Chess Board */}
             <div className="flex justify-center order-1 lg:order-2">
-              <div className="inline-block border-4 border-slate-700 bg-slate-800 shadow-2xl">
+              <div className="inline-block border-2 sm:border-3 md:border-4 border-slate-700 bg-slate-800 shadow-2xl">
                 {board.map((row, rowIndex) => (
                   <div key={rowIndex} className="flex">
                     {row.map((piece, colIndex) => {
@@ -992,11 +992,13 @@ const ChessGame = () => {
                           onClick={() => handleSquareClick(rowIndex, colIndex)}
                           disabled={isThinking || !!promotionSquare}
                           className={`
-                            w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-4xl sm:text-5xl font-bold
-                            transition-all duration-200 relative
+                            w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20
+                            flex items-center justify-center 
+                            text-2xl sm:text-3xl md:text-4xl lg:text-5xl
+                            font-bold transition-all duration-200 relative
                             ${isLight ? themes[theme].light : themes[theme].dark}
-                            ${isSelected ? 'ring-4 ring-blue-500 scale-95' : ''}
-                            ${isValidMove ? 'ring-4 ring-green-400' : ''}
+                            ${isSelected ? 'ring-2 sm:ring-3 md:ring-4 ring-blue-500 scale-95' : ''}
+                            ${isValidMove ? 'ring-2 sm:ring-3 md:ring-4 ring-green-400' : ''}
                             ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110 active:scale-95'}
                           `}
                         >
@@ -1008,7 +1010,7 @@ const ChessGame = () => {
                             {getPieceSymbol(piece)}
                           </span>
                           {isValidMove && !piece && (
-                            <div className="absolute w-4 h-4 bg-green-500 rounded-full opacity-70" />
+                            <div className="absolute w-2 h-2 sm:w-3 sm:h-3 md:w-4 md:h-4 bg-green-500 rounded-full opacity-70" />
                           )}
                         </button>
                       );
@@ -1019,32 +1021,32 @@ const ChessGame = () => {
             </div>
 
             {/* Captured Pieces Panel */}
-            <div className="w-full lg:w-64 bg-slate-800 p-4 rounded-lg order-3">
-              <h3 className="text-white font-bold mb-3">Captured Pieces</h3>
-              <div className="space-y-3">
+            <div className="w-full lg:w-56 xl:w-64 bg-slate-800 p-3 md:p-4 rounded-lg order-3">
+              <h3 className="text-white font-bold mb-2 md:mb-3 text-sm md:text-base">Captured</h3>
+              <div className="space-y-2 md:space-y-3">
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">White captured:</p>
+                  <p className="text-xs md:text-sm text-slate-400 mb-1">White:</p>
                   <div className="flex flex-wrap gap-1">
                     {capturedPieces.white.map((piece, idx) => (
-                      <span key={idx} className="text-2xl text-slate-900">
+                      <span key={idx} className="text-xl md:text-2xl text-slate-900">
                         {getPieceSymbol(piece)}
                       </span>
                     ))}
                     {capturedPieces.white.length === 0 && (
-                      <span className="text-slate-600 text-sm">None</span>
+                      <span className="text-slate-600 text-xs">None</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-400 mb-1">Black captured:</p>
+                  <p className="text-xs md:text-sm text-slate-400 mb-1">Black:</p>
                   <div className="flex flex-wrap gap-1">
                     {capturedPieces.black.map((piece, idx) => (
-                      <span key={idx} className="text-2xl text-white">
+                      <span key={idx} className="text-xl md:text-2xl text-white">
                         {getPieceSymbol(piece)}
                       </span>
                     ))}
                     {capturedPieces.black.length === 0 && (
-                      <span className="text-slate-600 text-sm">None</span>
+                      <span className="text-slate-600 text-xs">None</span>
                     )}
                   </div>
                 </div>
@@ -1052,62 +1054,64 @@ const ChessGame = () => {
             </div>
           </div>
 
-          <div className="text-center flex flex-wrap gap-2 justify-center mt-6">
+          <div className="text-center flex flex-wrap gap-2 justify-center mt-4">
             <button
               onClick={() => setGameMode(null)}
-              className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold transition-all active:scale-95"
+              className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold transition-all active:scale-95 text-xs sm:text-sm md:text-base"
             >
-              Change Mode
+              <span className="hidden md:inline">Change </span>Mode
             </button>
             
             <button
               onClick={initializeBoard}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base"
             >
-              <RotateCcw size={20} />
-              New Game
+              <RotateCcw size={16} className="md:w-5 md:h-5" />
+              <span className="hidden sm:inline">New</span>
+              <span className="hidden md:inline"> Game</span>
             </button>
             
             <button
               onClick={undoMove}
               disabled={boardHistory.length <= 1 || gameOver || (gameMode === 'ai' && currentPlayer === 'black')}
-              className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95"
+              className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 disabled:opacity-50 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base"
             >
-              <Undo size={20} />
+              <Undo size={16} className="md:w-5 md:h-5" />
               Undo
             </button>
             
             <button
               onClick={() => setShowMoveHistory(!showMoveHistory)}
-              className={`${showMoveHistory ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95`}
+              className={`${showMoveHistory ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}
             >
-              <TrendingUp size={20} />
-              History
+              <TrendingUp size={16} className="md:w-5 md:h-5" />
+              <span className="hidden sm:inline">History</span>
             </button>
             
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`${soundEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95`}
+              className={`${soundEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}
             >
-              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+              {soundEnabled ? <Volume2 size={16} className="md:w-5 md:h-5" /> : <VolumeX size={16} className="md:w-5 md:h-5" />}
+              <span className="hidden md:inline">{soundEnabled ? 'Sound' : 'Muted'}</span>
             </button>
             
             <button
               onClick={() => setTimerEnabled(!timerEnabled)}
-              className={`${timerEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95`}
+              className={`${timerEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}
             >
-              <Clock size={20} />
-              Timer
+              <Clock size={16} className="md:w-5 md:h-5" />
+              <span className="hidden md:inline">Timer</span>
             </button>
           </div>
 
           {gameMode === 'ai' && (
-            <div className="mt-4 bg-slate-800 p-4 rounded-lg">
-              <h3 className="text-white font-bold mb-3">AI Difficulty</h3>
+            <div className="mt-3 md:mt-4 bg-slate-800 p-3 md:p-4 rounded-lg">
+              <h3 className="text-white font-bold mb-2 md:mb-3 text-sm md:text-base">AI Difficulty</h3>
               <div className="flex gap-2">
                 <button
                   onClick={() => setAiDifficulty('easy')}
-                  className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all active:scale-95 ${
+                  className={`flex-1 py-2 px-2 md:px-4 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm ${
                     aiDifficulty === 'easy' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'
                   }`}
                 >
@@ -1115,15 +1119,15 @@ const ChessGame = () => {
                 </button>
                 <button
                   onClick={() => setAiDifficulty('medium')}
-                  className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all active:scale-95 ${
+                  className={`flex-1 py-2 px-2 md:px-4 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm ${
                     aiDifficulty === 'medium' ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300'
                   }`}
                 >
-                  🧐 Medium
+                  🧐 <span className="hidden sm:inline">Medium</span><span className="sm:hidden">Med</span>
                 </button>
                 <button
                   onClick={() => setAiDifficulty('hard')}
-                  className={`flex-1 py-2 px-4 rounded-lg font-bold transition-all active:scale-95 ${
+                  className={`flex-1 py-2 px-2 md:px-4 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm ${
                     aiDifficulty === 'hard' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300'
                   }`}
                 >
@@ -1133,30 +1137,32 @@ const ChessGame = () => {
             </div>
           )}
 
-          <div className="bg-slate-800 p-4 rounded-lg text-slate-300 text-sm mt-4">
-            <h3 className="font-bold text-white mb-2">How to Play:</h3>
-            <ul className="space-y-1">
-              <li>• Tap piece to select (green shows valid moves)</li>
-              <li>• King in danger = CHECK warning ⚠️</li>
-              <li>• King trapped = CHECKMATE (you win!) 🎉</li>
-              <li>• No legal moves but safe = STALEMATE (draw) 🤝</li>
-              <li>• Use UNDO to take back your last move</li>
-              {gameMode === 'ai' && <li>• You play as WHITE vs computer</li>}
+          <div className="bg-slate-800 p-3 md:p-4 rounded-lg text-slate-300 text-xs md:text-sm mt-3 md:mt-4">
+            <h3 className="font-bold text-white mb-2 text-sm md:text-base">How to Play:</h3>
+            <ul className="space-y-0.5 md:space-y-1">
+              <li className="md:hidden">• Tap piece (green = valid moves)</li>
+              <li className="hidden md:block">• Tap piece to select (green shows valid moves)</li>
+              <li className="md:hidden">• Check ⚠️ | Checkmate 🎉 | Stalemate 🤝</li>
+              <li className="hidden md:block">• King in danger = CHECK warning ⚠️</li>
+              <li className="hidden md:block">• King trapped = CHECKMATE (you win!) 🎉</li>
+              <li className="hidden md:block">• No legal moves but safe = STALEMATE (draw) 🤝</li>
+              <li>• Use UNDO to take back <span className="hidden md:inline">your last </span>move</li>
+              {gameMode === 'ai' && <li>• You play as WHITE<span className="hidden md:inline"> vs computer</span></li>}
             </ul>
           </div>
 
           <button
             onClick={() => setShowThemePanel(!showThemePanel)}
-            className="fixed bottom-24 right-6 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 animate-pulse"
+            className="fixed bottom-20 right-4 md:bottom-24 md:right-6 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-white p-3 md:p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40"
             title="Change Theme"
           >
-            <Palette size={28} />
+            <Palette size={20} className="md:w-7 md:h-7" />
           </button>
 
           {showThemePanel && (
-            <div className="fixed right-6 bottom-40 bg-slate-800 rounded-xl shadow-2xl p-4 z-40 border-2 border-slate-700 max-h-96 overflow-y-auto">
-              <h3 className="text-white font-bold mb-3 text-center">Choose Theme</h3>
-              <div className="space-y-2">
+            <div className="fixed right-4 bottom-36 md:right-6 md:bottom-40 bg-slate-800 rounded-xl shadow-2xl p-3 md:p-4 z-40 border-2 border-slate-700 max-h-80 md:max-h-96 overflow-y-auto">
+              <h3 className="text-white font-bold mb-2 md:mb-3 text-center text-sm md:text-base">Theme</h3>
+              <div className="space-y-1.5 md:space-y-2">
                 {Object.entries(themes).map(([key, t]) => (
                   <button
                     key={key}
@@ -1165,15 +1171,15 @@ const ChessGame = () => {
                       setShowThemePanel(false);
                       vibrate(30);
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all active:scale-95 ${
+                    className={`w-full flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg transition-all active:scale-95 text-xs md:text-sm ${
                       theme === key 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                     }`}
                   >
-                    <span className="text-2xl">{t.icon}</span>
-                    <span className="font-semibold">{t.name}</span>
-                    {theme === key && <span className="ml-auto">✓</span>}
+                    <span className="text-lg md:text-2xl">{t.icon}</span>
+                    <span className="font-semibold text-xs md:text-sm">{t.name}</span>
+                    {theme === key && <span className="ml-auto text-xs md:text-base">✓</span>}
                   </button>
                 ))}
               </div>
@@ -1182,11 +1188,11 @@ const ChessGame = () => {
         </div>
       </div>
 
-      <footer className="bg-slate-800 border-t border-slate-700 py-4 mt-8">
+      <footer className="bg-slate-800 border-t border-slate-700 py-2 md:py-4 mt-4 md:mt-8">
         <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
+          <div className="flex items-center justify-center gap-2 text-slate-400 text-xs md:text-sm">
             <span>from Musfirah</span>
-            <span className="text-lg" style={{ color: '#87CEEB' }}>🦋</span>
+            <span className="text-sm md:text-lg" style={{ color: '#87CEEB' }}>🦋</span>
           </div>
         </div>
       </footer>
