@@ -1,7 +1,7 @@
 {
-  "name": "ChessX - Chess Game",
+  "name": "ChessX by Musfirah Ahmad",
   "short_name": "ChessX",
-  "description": "Play chess with AI or local multiplayer. Features multiple themes, move history, undo moves, and statistics tracking.",
+  "description": "Play chess with AI or local multiplayer by Musfirah Ahmad. Features multiple themes, move history, undo moves, and statistics tracking.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
