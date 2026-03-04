@@ -1,4 +1,4 @@
-# ChessGame ♟️
+# ChessX ♟️
 
 A simple chess game with two-player and AI modes. Enjoy!
 
