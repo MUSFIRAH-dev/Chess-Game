@@ -1,823 +1,1016 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Crown, RotateCcw, User, Cpu, Undo, Clock, Trophy, TrendingUp, X, Check } from 'lucide-react';
+import { Crown, RotateCcw, User, Cpu, Palette, Volume2, VolumeX, Undo, Clock, Trophy, TrendingUp } from 'lucide-react';
 
-// ── THEMES ────────────────────────────────────────────────────────────────────
-const THEMES = {
-  classic:  { name: 'Classic',  light: '#f0d9b5', dark: '#b58863', bg: '#1e293b', accent: '#f0d9b5' },
-  midnight: { name: 'Midnight', light: '#c4b5fd', dark: '#1e1b4b', bg: '#0f0c29', accent: '#c4b5fd' },
-  sakura:   { name: 'Sakura',   light: '#fda4af', dark: '#be123c', bg: '#1a0a10', accent: '#f472b6' },
-  matrix:   { name: 'Matrix',   light: '#bbf7d0', dark: '#14532d', bg: '#0d1117', accent: '#00ff88' },
-  ocean:    { name: 'Ocean',    light: '#bae6fd', dark: '#1e3a5f', bg: '#050d1a', accent: '#00d4ff' },
-  galaxy:   { name: 'Galaxy',   light: '#fef3c7', dark: '#78350f', bg: '#2d1b69', accent: '#f59e0b' },
-};
-
-// ── SOUNDS (Advanced Web Audio) ───────────────────────────────────────────────
-const createSoundEngine = () => {
-  let ctx = null;
-  const getCtx = () => {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    return ctx;
-  };
-  const play = (type) => {
-    try {
-      const c = getCtx();
-      const master = c.createGain();
-      master.connect(c.destination);
-      const now = c.currentTime;
-      switch (type) {
-        case 'move': {
-          const o = c.createOscillator(); const g = c.createGain();
-          o.connect(g); g.connect(master);
-          o.type = 'sine'; o.frequency.setValueAtTime(520, now); o.frequency.exponentialRampToValueAtTime(420, now + 0.08);
-          g.gain.setValueAtTime(0.18, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-          o.start(now); o.stop(now + 0.12); break;
-        }
-        case 'capture': {
-          [200, 180, 160].forEach((f, i) => {
-            const o = c.createOscillator(); const g = c.createGain();
-            o.connect(g); g.connect(master);
-            o.type = 'sawtooth'; o.frequency.value = f;
-            g.gain.setValueAtTime(0.15, now + i * 0.04); g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.1);
-            o.start(now + i * 0.04); o.stop(now + i * 0.04 + 0.1);
-          }); break;
-        }
-        case 'check': {
-          [700, 900].forEach((f, i) => {
-            const o = c.createOscillator(); const g = c.createGain();
-            o.connect(g); g.connect(master);
-            o.type = 'square'; o.frequency.value = f;
-            g.gain.setValueAtTime(0.12, now + i * 0.1); g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.15);
-            o.start(now + i * 0.1); o.stop(now + i * 0.1 + 0.15);
-          }); break;
-        }
-        case 'win': {
-          [400, 500, 630, 800].forEach((f, i) => {
-            const o = c.createOscillator(); const g = c.createGain();
-            o.connect(g); g.connect(master);
-            o.type = 'sine'; o.frequency.value = f;
-            g.gain.setValueAtTime(0.14, now + i * 0.13); g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.13 + 0.22);
-            o.start(now + i * 0.13); o.stop(now + i * 0.13 + 0.22);
-          }); break;
-        }
-        case 'select': {
-          const o = c.createOscillator(); const g = c.createGain();
-          o.connect(g); g.connect(master);
-          o.type = 'sine'; o.frequency.setValueAtTime(660, now); o.frequency.exponentialRampToValueAtTime(880, now + 0.06);
-          g.gain.setValueAtTime(0.1, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-          o.start(now); o.stop(now + 0.08); break;
-        }
-        case 'error': {
-          const o = c.createOscillator(); const g = c.createGain();
-          o.connect(g); g.connect(master);
-          o.type = 'sawtooth'; o.frequency.value = 120;
-          g.gain.setValueAtTime(0.1, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-          o.start(now); o.stop(now + 0.1); break;
-        }
-      }
-    } catch(e) {}
-  };
-  return { play };
-};
-
-// ── AI (Minimax with alpha-beta for Hard) ─────────────────────────────────────
-const PIECE_VALUES = { pawn: 100, knight: 320, bishop: 330, rook: 500, queen: 900, king: 20000 };
-
-const PAWN_TABLE = [
-  [0,0,0,0,0,0,0,0],[50,50,50,50,50,50,50,50],[10,10,20,30,30,20,10,10],
-  [5,5,10,25,25,10,5,5],[0,0,0,20,20,0,0,0],[5,-5,-10,0,0,-10,-5,5],
-  [5,10,10,-20,-20,10,10,5],[0,0,0,0,0,0,0,0]
-];
-const KNIGHT_TABLE = [
-  [-50,-40,-30,-30,-30,-30,-40,-50],[-40,-20,0,0,0,0,-20,-40],[-30,0,10,15,15,10,0,-30],
-  [-30,5,15,20,20,15,5,-30],[-30,0,15,20,20,15,0,-30],[-30,5,10,15,15,10,5,-30],
-  [-40,-20,0,5,5,0,-20,-40],[-50,-40,-30,-30,-30,-30,-40,-50]
-];
-
-const getPieceSquareValue = (piece, row, col) => {
-  if (piece.type === 'pawn') {
-    const r = piece.color === 'white' ? row : 7 - row;
-    return PAWN_TABLE[r][col];
-  }
-  if (piece.type === 'knight') {
-    const r = piece.color === 'white' ? row : 7 - row;
-    return KNIGHT_TABLE[r][col];
-  }
-  return 0;
-};
-
-const evaluateBoard = (board) => {
-  let score = 0;
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const p = board[r][c];
-      if (!p) continue;
-      const val = PIECE_VALUES[p.type] + getPieceSquareValue(p, r, c);
-      score += p.color === 'black' ? val : -val;
-    }
-  }
-  return score;
-};
-
-// ── CHESS LOGIC HELPERS ───────────────────────────────────────────────────────
-const isPathClear = (fromRow, fromCol, toRow, toCol, board) => {
-  const rs = toRow > fromRow ? 1 : toRow < fromRow ? -1 : 0;
-  const cs = toCol > fromCol ? 1 : toCol < fromCol ? -1 : 0;
-  let r = fromRow + rs, c = fromCol + cs;
-  while (r !== toRow || c !== toCol) {
-    if (board[r][c]) return false;
-    r += rs; c += cs;
-  }
-  return true;
-};
-
-const isValidMoveIgnoringCheck = (fromRow, fromCol, toRow, toCol, piece, board) => {
-  if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
-  const target = board[toRow][toCol];
-  if (target && target.color === piece.color) return false;
-  const rd = toRow - fromRow, cd = toCol - fromCol;
-  const ar = Math.abs(rd), ac = Math.abs(cd);
-  switch (piece.type) {
-    case 'pawn': {
-      const dir = piece.color === 'white' ? -1 : 1;
-      const start = piece.color === 'white' ? 6 : 1;
-      if (cd === 0 && !target) {
-        if (rd === dir) return true;
-        if (fromRow === start && rd === 2 * dir && !board[fromRow + dir][fromCol]) return true;
-      }
-      if (ac === 1 && rd === dir && target) return true;
-      return false;
-    }
-    case 'rook': return (rd === 0 || cd === 0) && isPathClear(fromRow, fromCol, toRow, toCol, board);
-    case 'knight': return (ar === 2 && ac === 1) || (ar === 1 && ac === 2);
-    case 'bishop': return ar === ac && isPathClear(fromRow, fromCol, toRow, toCol, board);
-    case 'queen': return (rd === 0 || cd === 0 || ar === ac) && isPathClear(fromRow, fromCol, toRow, toCol, board);
-    case 'king': return ar <= 1 && ac <= 1;
-    default: return false;
-  }
-};
-
-const findKing = (board, color) => {
-  for (let r = 0; r < 8; r++)
-    for (let c = 0; c < 8; c++)
-      if (board[r][c]?.type === 'king' && board[r][c]?.color === color) return [r, c];
-  return null;
-};
-
-const isSquareAttacked = (board, row, col, byColor) => {
-  for (let r = 0; r < 8; r++)
-    for (let c = 0; c < 8; c++) {
-      const p = board[r][c];
-      if (p && p.color === byColor && isValidMoveIgnoringCheck(r, c, row, col, p, board)) return true;
-    }
-  return false;
-};
-
-const isKingInCheck = (board, color) => {
-  const pos = findKing(board, color);
-  if (!pos) return false;
-  return isSquareAttacked(board, pos[0], pos[1], color === 'white' ? 'black' : 'white');
-};
-
-const wouldCauseCheck = (fromRow, fromCol, toRow, toCol, board, color) => {
-  const nb = board.map(r => [...r]);
-  nb[toRow][toCol] = nb[fromRow][fromCol];
-  nb[fromRow][fromCol] = null;
-  return isKingInCheck(nb, color);
-};
-
-const isValidMove = (fromRow, fromCol, toRow, toCol, piece, board) => {
-  if (!isValidMoveIgnoringCheck(fromRow, fromCol, toRow, toCol, piece, board)) return false;
-  return !wouldCauseCheck(fromRow, fromCol, toRow, toCol, board, piece.color);
-};
-
-const getValidMoves = (row, col, board) => {
-  const piece = board[row][col];
-  if (!piece) return [];
-  const moves = [];
-  for (let r = 0; r < 8; r++)
-    for (let c = 0; c < 8; c++)
-      if (isValidMove(row, col, r, c, piece, board)) moves.push([r, c]);
-  return moves;
-};
-
-const getAllMoves = (color, board) => {
-  const moves = [];
-  for (let r = 0; r < 8; r++)
-    for (let c = 0; c < 8; c++) {
-      const p = board[r][c];
-      if (p && p.color === color) {
-        getValidMoves(r, c, board).forEach(([tr, tc]) => moves.push({ from: [r,c], to: [tr,tc] }));
-      }
-    }
-  return moves;
-};
-
-const hasLegalMoves = (board, color) => getAllMoves(color, board).length > 0;
-const isCheckmate = (board, color) => isKingInCheck(board, color) && !hasLegalMoves(board, color);
-const isStalemate = (board, color) => !isKingInCheck(board, color) && !hasLegalMoves(board, color);
-
-const applyMove = (board, from, to) => {
-  const nb = board.map(r => [...r]);
-  nb[to[0]][to[1]] = nb[from[0]][from[1]];
-  nb[from[0]][from[1]] = null;
-  if (nb[to[0]][to[1]]?.type === 'pawn') {
-    if ((nb[to[0]][to[1]].color === 'white' && to[0] === 0) ||
-        (nb[to[0]][to[1]].color === 'black' && to[0] === 7))
-      nb[to[0]][to[1]] = { type: 'queen', color: nb[to[0]][to[1]].color };
-  }
-  return nb;
-};
-
-// Minimax with alpha-beta pruning for Hard AI
-const minimax = (board, depth, alpha, beta, maximizing) => {
-  if (depth === 0) return evaluateBoard(board);
-  const color = maximizing ? 'black' : 'white';
-  const moves = getAllMoves(color, board);
-  if (moves.length === 0) return maximizing ? -99999 : 99999;
-  if (maximizing) {
-    let best = -Infinity;
-    for (const m of moves) {
-      const nb = applyMove(board, m.from, m.to);
-      best = Math.max(best, minimax(nb, depth - 1, alpha, beta, false));
-      alpha = Math.max(alpha, best);
-      if (beta <= alpha) break;
-    }
-    return best;
-  } else {
-    let best = Infinity;
-    for (const m of moves) {
-      const nb = applyMove(board, m.from, m.to);
-      best = Math.min(best, minimax(nb, depth - 1, alpha, beta, true));
-      beta = Math.min(beta, best);
-      if (beta <= alpha) break;
-    }
-    return best;
-  }
-};
-
-const getBestMove = (board, difficulty) => {
-  const moves = getAllMoves('black', board);
-  if (!moves.length) return null;
-  if (difficulty === 'easy') {
-    // Random with slight preference for captures
-    const captures = moves.filter(m => board[m.to[0]][m.to[1]]);
-    return captures.length && Math.random() > 0.5
-      ? captures[Math.floor(Math.random() * captures.length)]
-      : moves[Math.floor(Math.random() * moves.length)];
-  }
-  const depth = difficulty === 'medium' ? 2 : 3;
-  let best = null, bestScore = -Infinity;
-  for (const m of moves) {
-    const nb = applyMove(board, m.from, m.to);
-    let score = minimax(nb, depth - 1, -Infinity, Infinity, false);
-    if (difficulty === 'medium') score += Math.random() * 40;
-    if (score > bestScore) { bestScore = score; best = m; }
-  }
-  return best;
-};
-
-// ── PIECE SYMBOLS ─────────────────────────────────────────────────────────────
-const SYMBOLS = { king:'♔', queen:'♕', rook:'♖', bishop:'♗', knight:'♘', pawn:'♙' };
-const getPieceSymbol = (p) => p ? SYMBOLS[p.type] : '';
-
-const getSquareName = (row, col) => 'abcdefgh'[col] + (8 - row);
-
-// ── HEART ICON (SVG) ──────────────────────────────────────────────────────────
-const HeartIcon = ({ size = 20, glow = false }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"
-    style={{ filter: glow ? 'drop-shadow(0 0 6px #f472b6)' : 'none' }}>
-    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-  </svg>
-);
-
-// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [validMoves, setValidMoves] = useState([]);
+  const [selectedSquare, setSelectedSquare] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState('white');
+  const [validMoves, setValidMoves] = useState([]);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null);
-  const [isDraw, setIsDraw] = useState(false);
-  const [isCheck, setIsCheck] = useState(false);
-  const [captured, setCaptured] = useState({ white: [], black: [] });
+  const [capturedPieces, setCapturedPieces] = useState({ white: [], black: [] });
   const [gameMode, setGameMode] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
   const [promotionSquare, setPromotionSquare] = useState(null);
-  const [boardHistory, setBoardHistory] = useState([]);
+  const [isCheck, setIsCheck] = useState(false);
+  const [isDraw, setIsDraw] = useState(false);
+  const [theme, setTheme] = useState('classic');
+  const [showThemePanel, setShowThemePanel] = useState(false);
+  
+  // NEW FEATURES
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [moveHistory, setMoveHistory] = useState([]);
+  const [boardHistory, setBoardHistory] = useState([]);
+  const [aiDifficulty, setAiDifficulty] = useState('medium');
   const [showMoveHistory, setShowMoveHistory] = useState(false);
+  const [whiteTime, setWhiteTime] = useState(600); // 10 minutes
+  const [blackTime, setBlackTime] = useState(600);
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [stats, setStats] = useState({
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    winStreak: 0
+  });
   const [showStats, setShowStats] = useState(false);
 
-  // Settings
-  const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState('classic');
-  const [difficulty, setDifficulty] = useState('medium');
-  const [soundMode, setSoundMode] = useState('advanced');
-  const [timerPreset, setTimerPreset] = useState(null); // null = off
-  const [customTime, setCustomTime] = useState(10);
-  const [showCustomTime, setShowCustomTime] = useState(false);
-  const [whiteTime, setWhiteTime] = useState(600);
-  const [blackTime, setBlackTime] = useState(600);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const audioContextRef = useRef(null);
 
-  const [stats, setStats] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('chessStats')) || { gamesPlayed:0, wins:0, losses:0, draws:0, winStreak:0 }; }
-    catch { return { gamesPlayed:0, wins:0, losses:0, draws:0, winStreak:0 }; }
-  });
-
-  const soundRef = useRef(null);
-  const settingsRef = useRef(null);
-
-  const getSound = () => {
-    if (!soundRef.current) soundRef.current = createSoundEngine();
-    return soundRef.current;
+  const themes = {
+    classic: {
+      name: 'Classic Wood',
+      light: 'bg-[#f0d9b5]',
+      dark: 'bg-[#b58863]',
+      icon: '🪵'
+    },
+    ocean: {
+      name: 'Ocean Blue',
+      light: 'bg-[#e8f4f8]',
+      dark: 'bg-[#4a90a4]',
+      icon: '🌊'
+    },
+    forest: {
+      name: 'Forest Green',
+      light: 'bg-[#e8f5e9]',
+      dark: 'bg-[#66bb6a]',
+      icon: '🌲'
+    },
+    purple: {
+      name: 'Purple Royale',
+      light: 'bg-[#f3e5f5]',
+      dark: 'bg-[#9c27b0]',
+      icon: '👑'
+    },
+    dark: {
+      name: 'Dark Mode',
+      light: 'bg-[#4a5568]',
+      dark: 'bg-[#1a202c]',
+      icon: '🌙'
+    },
+    neon: {
+      name: 'Neon Cyber',
+      light: 'bg-[#1a1a2e]',
+      dark: 'bg-[#0f3460]',
+      icon: '🌃'
+    }
   };
 
+  // Sound Effects
   const playSound = (type) => {
-    if (soundMode === 'off') return;
-    getSound().play(type);
+    if (!soundEnabled) return;
+    
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    const ctx = audioContextRef.current;
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    switch(type) {
+      case 'move':
+        oscillator.frequency.value = 300;
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.1);
+        break;
+      case 'capture':
+        oscillator.frequency.value = 150;
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.15);
+        break;
+      case 'check':
+        oscillator.frequency.value = 600;
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.2);
+        break;
+      case 'win':
+        [400, 500, 600].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.15 + 0.2);
+          osc.start(ctx.currentTime + i * 0.15);
+          osc.stop(ctx.currentTime + i * 0.15 + 0.2);
+        });
+        break;
+      case 'error':
+        oscillator.frequency.value = 100;
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.1);
+        break;
+    }
   };
 
-  const vibrate = (p) => navigator.vibrate && navigator.vibrate(p);
+  // Haptic Feedback
+  const vibrate = (pattern) => {
+    if (navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  };
 
-  const t = THEMES[theme];
-
-  // Close settings on outside click
+  // Timer Effect
   useEffect(() => {
-    const handler = (e) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target)) setShowSettings(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  // Timer
-  useEffect(() => {
-    if (!timerPreset || !timerRunning || gameOver) return;
+    if (!timerEnabled || !timerRunning || gameOver) return;
+    
     const interval = setInterval(() => {
       if (currentPlayer === 'white') {
         setWhiteTime(prev => {
-          if (prev <= 1) { endGame('black'); return 0; }
+          if (prev <= 1) {
+            setGameOver(true);
+            setWinner('black');
+            updateStats('black');
+            playSound('win');
+            return 0;
+          }
           return prev - 1;
         });
       } else {
         setBlackTime(prev => {
-          if (prev <= 1) { endGame('white'); return 0; }
+          if (prev <= 1) {
+            setGameOver(true);
+            setWinner('white');
+            updateStats('white');
+            playSound('win');
+            return 0;
+          }
           return prev - 1;
         });
       }
     }, 1000);
+    
     return () => clearInterval(interval);
-  }, [timerPreset, timerRunning, currentPlayer, gameOver]);
+  }, [timerEnabled, timerRunning, currentPlayer, gameOver]);
+
+  // Load saved game and stats
+  useEffect(() => {
+    const savedGame = localStorage.getItem('chessGame');
+    const savedStats = localStorage.getItem('chessStats');
+    
+    if (savedStats) {
+      setStats(JSON.parse(savedStats));
+    }
+    
+    if (savedGame) {
+      const gameData = JSON.parse(savedGame);
+      // Optionally restore game state
+    }
+  }, []);
+
+  // Save game state
+  useEffect(() => {
+    if (gameMode && board.length > 0) {
+      localStorage.setItem('chessGame', JSON.stringify({
+        board,
+        currentPlayer,
+        gameMode,
+        capturedPieces,
+        moveHistory,
+        aiDifficulty,
+        theme
+      }));
+    }
+  }, [board, currentPlayer, gameMode, capturedPieces, moveHistory, aiDifficulty, theme]);
 
   // Save stats
   useEffect(() => {
     localStorage.setItem('chessStats', JSON.stringify(stats));
   }, [stats]);
 
-  // AI move
-  useEffect(() => {
-    if (gameMode === 'ai' && currentPlayer === 'black' && !gameOver && !promotionSquare && board.length) {
-      setIsThinking(true);
-      const delay = difficulty === 'easy' ? 300 : difficulty === 'medium' ? 600 : 1000;
-      const t = setTimeout(() => {
-        makeAIMove();
-      }, delay);
-      return () => clearTimeout(t);
-    }
-  }, [currentPlayer, gameMode, gameOver, promotionSquare, board]);
+  const updateStats = (winningPlayer) => {
+    setStats(prev => {
+      const newStats = { ...prev };
+      newStats.gamesPlayed += 1;
+      
+      if (isDraw) {
+        newStats.draws += 1;
+        newStats.winStreak = 0;
+      } else if (winningPlayer === 'white' && gameMode === 'ai') {
+        newStats.wins += 1;
+        newStats.winStreak += 1;
+      } else if (winningPlayer === 'black' && gameMode === 'ai') {
+        newStats.losses += 1;
+        newStats.winStreak = 0;
+      }
+      
+      return newStats;
+    });
+  };
 
-  const endGame = (w, draw = false) => {
-    setGameOver(true);
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    if (gameMode) {
+      initializeBoard();
+    }
+  }, [gameMode]);
+
+  useEffect(() => {
+    if (gameMode === 'ai' && currentPlayer === 'black' && !gameOver && !promotionSquare) {
+      setIsThinking(true);
+      const timeout = setTimeout(() => {
+        makeAIMove();
+      }, aiDifficulty === 'easy' ? 300 : aiDifficulty === 'medium' ? 500 : 800);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentPlayer, gameMode, gameOver, promotionSquare]);
+
+  const initializeBoard = () => {
+    const newBoard = Array(8).fill(null).map(() => Array(8).fill(null));
+    
+    for (let i = 0; i < 8; i++) {
+      newBoard[1][i] = { type: 'pawn', color: 'black' };
+      newBoard[6][i] = { type: 'pawn', color: 'white' };
+    }
+    
+    const setupRow = (row, color) => {
+      newBoard[row][0] = { type: 'rook', color };
+      newBoard[row][1] = { type: 'knight', color };
+      newBoard[row][2] = { type: 'bishop', color };
+      newBoard[row][3] = { type: 'queen', color };
+      newBoard[row][4] = { type: 'king', color };
+      newBoard[row][5] = { type: 'bishop', color };
+      newBoard[row][6] = { type: 'knight', color };
+      newBoard[row][7] = { type: 'rook', color };
+    };
+    
+    setupRow(0, 'black');
+    setupRow(7, 'white');
+    
+    setBoard(newBoard);
+    setBoardHistory([JSON.parse(JSON.stringify(newBoard))]);
+    setCurrentPlayer('white');
+    setGameOver(false);
+    setWinner(null);
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setCapturedPieces({ white: [], black: [] });
+    setIsThinking(false);
+    setPromotionSquare(null);
+    setIsCheck(false);
+    setIsDraw(false);
+    setMoveHistory([]);
+    setWhiteTime(600);
+    setBlackTime(600);
     setTimerRunning(false);
-    if (draw) {
-      setIsDraw(true);
-      setStats(p => ({ ...p, gamesPlayed: p.gamesPlayed+1, draws: p.draws+1, winStreak: 0 }));
-    } else {
-      setWinner(w);
-      if (gameMode === 'ai') {
-        if (w === 'white') setStats(p => ({ ...p, gamesPlayed: p.gamesPlayed+1, wins: p.wins+1, winStreak: p.winStreak+1 }));
-        else setStats(p => ({ ...p, gamesPlayed: p.gamesPlayed+1, losses: p.losses+1, winStreak: 0 }));
-      } else {
-        setStats(p => ({ ...p, gamesPlayed: p.gamesPlayed+1 }));
+  };
+
+  const getPieceSymbol = (piece) => {
+    if (!piece) return '';
+    const symbols = {
+      king: '♔',
+      queen: '♕',
+      rook: '♖',
+      bishop: '♗',
+      knight: '♘',
+      pawn: '♙'
+    };
+    return symbols[piece.type];
+  };
+
+  const getPieceValue = (type) => {
+    const values = { pawn: 1, knight: 3, bishop: 3, rook: 5, queen: 9, king: 100 };
+    return values[type] || 0;
+  };
+
+  const getSquareName = (row, col) => {
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+    return files[col] + ranks[row];
+  };
+
+  const addMoveToHistory = (fromRow, fromCol, toRow, toCol, piece, captured) => {
+    const from = getSquareName(fromRow, fromCol);
+    const to = getSquareName(toRow, toCol);
+    const pieceSymbol = getPieceSymbol(piece);
+    const captureSymbol = captured ? 'x' : '→';
+    const moveNotation = `${pieceSymbol} ${from} ${captureSymbol} ${to}`;
+    setMoveHistory(prev => [...prev, { notation: moveNotation, player: currentPlayer }]);
+  };
+
+  const undoMove = () => {
+    if (boardHistory.length <= 1 || gameOver) return;
+    
+    vibrate(30);
+    playSound('move');
+    
+    const newHistory = [...boardHistory];
+    newHistory.pop(); // Remove current state
+    const previousBoard = newHistory[newHistory.length - 1];
+    
+    setBoardHistory(newHistory);
+    setBoard(JSON.parse(JSON.stringify(previousBoard)));
+    setMoveHistory(prev => prev.slice(0, -1));
+    setCurrentPlayer(prev => prev === 'white' ? 'black' : 'white');
+    setSelectedSquare(null);
+    setValidMoves([]);
+    setIsCheck(false);
+  };
+
+  const checkPromotion = (row, piece) => {
+    if (piece.type === 'pawn') {
+      if ((piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7)) {
+        return true;
       }
     }
-    playSound('win');
-    vibrate([100,50,100,50,100]);
+    return false;
   };
 
-  const formatTime = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-
-  const initBoard = () => {
-    const nb = Array(8).fill(null).map(() => Array(8).fill(null));
-    for (let i = 0; i < 8; i++) {
-      nb[1][i] = { type:'pawn', color:'black' };
-      nb[6][i] = { type:'pawn', color:'white' };
+  const promotePawn = (row, col, pieceType) => {
+    const newBoard = board.map(r => [...r]);
+    newBoard[row][col] = { type: pieceType, color: newBoard[row][col].color };
+    setBoard(newBoard);
+    setPromotionSquare(null);
+    
+    playSound('move');
+    vibrate(50);
+    
+    const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
+    
+    if (isKingInCheck(newBoard, nextPlayer)) {
+      setIsCheck(true);
+      playSound('check');
+      vibrate([50, 30, 50]);
+      if (isCheckmate(newBoard, nextPlayer)) {
+        setGameOver(true);
+        setWinner(currentPlayer);
+        updateStats(currentPlayer);
+        playSound('win');
+        vibrate([100, 50, 100, 50, 100]);
+        return;
+      }
+    } else {
+      setIsCheck(false);
+      if (isStalemate(newBoard, nextPlayer)) {
+        setGameOver(true);
+        setIsDraw(true);
+        updateStats(null);
+        playSound('win');
+        vibrate([100, 50, 100]);
+        return;
+      }
     }
-    const setup = (row, color) => {
-      ['rook','knight','bishop','queen','king','bishop','knight','rook'].forEach((t,i) => {
-        nb[row][i] = { type:t, color };
-      });
-    };
-    setup(0,'black'); setup(7,'white');
-    const secs = timerPreset ? timerPreset * 60 : 600;
-    setBoard(nb);
-    setBoardHistory([JSON.parse(JSON.stringify(nb))]);
-    setCurrentPlayer('white');
-    setGameOver(false); setWinner(null); setIsDraw(false); setIsCheck(false);
-    setSelected(null); setValidMoves([]);
-    setCaptured({ white:[], black:[] });
-    setIsThinking(false); setPromotionSquare(null);
-    setMoveHistory([]);
-    setWhiteTime(secs); setBlackTime(secs);
-    setTimerRunning(false);
+    
+    setCurrentPlayer(nextPlayer);
+    if (timerEnabled) setTimerRunning(true);
   };
 
-  useEffect(() => { if (gameMode) initBoard(); }, [gameMode]);
+  const findKing = (testBoard, color) => {
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = testBoard[row][col];
+        if (piece && piece.type === 'king' && piece.color === color) {
+          return [row, col];
+        }
+      }
+    }
+    return null;
+  };
+
+  const isSquareAttacked = (testBoard, row, col, byColor) => {
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = testBoard[r][c];
+        if (piece && piece.color === byColor) {
+          if (isValidMoveIgnoringCheck(r, c, row, col, piece, testBoard)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  const isKingInCheck = (testBoard, color) => {
+    const kingPos = findKing(testBoard, color);
+    if (!kingPos) return false;
+    const [kingRow, kingCol] = kingPos;
+    const opponentColor = color === 'white' ? 'black' : 'white';
+    return isSquareAttacked(testBoard, kingRow, kingCol, opponentColor);
+  };
+
+  const wouldMoveCauseCheck = (fromRow, fromCol, toRow, toCol, testBoard, playerColor) => {
+    const newBoard = testBoard.map(row => [...row]);
+    const piece = newBoard[fromRow][fromCol];
+    newBoard[toRow][toCol] = piece;
+    newBoard[fromRow][fromCol] = null;
+    return isKingInCheck(newBoard, playerColor);
+  };
+
+  const isValidMoveIgnoringCheck = (fromRow, fromCol, toRow, toCol, piece, testBoard) => {
+    if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
+    const targetPiece = testBoard[toRow][toCol];
+    if (targetPiece && targetPiece.color === piece.color) return false;
+
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+    const absRowDiff = Math.abs(rowDiff);
+    const absColDiff = Math.abs(colDiff);
+
+    switch (piece.type) {
+      case 'pawn':
+        const direction = piece.color === 'white' ? -1 : 1;
+        const startRow = piece.color === 'white' ? 6 : 1;
+        if (colDiff === 0 && !targetPiece) {
+          if (rowDiff === direction) return true;
+          if (fromRow === startRow && rowDiff === 2 * direction && !testBoard[fromRow + direction][fromCol]) return true;
+        }
+        if (absColDiff === 1 && rowDiff === direction && targetPiece) return true;
+        return false;
+      case 'rook':
+        if (rowDiff !== 0 && colDiff !== 0) return false;
+        return isPathClear(fromRow, fromCol, toRow, toCol, testBoard);
+      case 'knight':
+        return (absRowDiff === 2 && absColDiff === 1) || (absRowDiff === 1 && absColDiff === 2);
+      case 'bishop':
+        if (absRowDiff !== absColDiff) return false;
+        return isPathClear(fromRow, fromCol, toRow, toCol, testBoard);
+      case 'queen':
+        if (rowDiff !== 0 && colDiff !== 0 && absRowDiff !== absColDiff) return false;
+        return isPathClear(fromRow, fromCol, toRow, toCol, testBoard);
+      case 'king':
+        return absRowDiff <= 1 && absColDiff <= 1;
+      default:
+        return false;
+    }
+  };
+
+  const isValidMove = (fromRow, fromCol, toRow, toCol, piece, testBoard = board) => {
+    if (!isValidMoveIgnoringCheck(fromRow, fromCol, toRow, toCol, piece, testBoard)) {
+      return false;
+    }
+    return !wouldMoveCauseCheck(fromRow, fromCol, toRow, toCol, testBoard, piece.color);
+  };
+
+  const isPathClear = (fromRow, fromCol, toRow, toCol, testBoard) => {
+    const rowStep = toRow > fromRow ? 1 : toRow < fromRow ? -1 : 0;
+    const colStep = toCol > fromCol ? 1 : toCol < fromCol ? -1 : 0;
+    let currentRow = fromRow + rowStep;
+    let currentCol = fromCol + colStep;
+    while (currentRow !== toRow || currentCol !== toCol) {
+      if (testBoard[currentRow][currentCol]) return false;
+      currentRow += rowStep;
+      currentCol += colStep;
+    }
+    return true;
+  };
+
+  const getValidMovesForPiece = (row, col, testBoard = board) => {
+    const moves = [];
+    const piece = testBoard[row][col];
+    if (!piece) return moves;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (isValidMove(row, col, r, c, piece, testBoard)) {
+          moves.push([r, c]);
+        }
+      }
+    }
+    return moves;
+  };
+
+  const hasAnyLegalMoves = (testBoard, color) => {
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = testBoard[r][c];
+        if (piece && piece.color === color) {
+          const moves = getValidMovesForPiece(r, c, testBoard);
+          if (moves.length > 0) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const isCheckmate = (testBoard, color) => {
+    if (!isKingInCheck(testBoard, color)) return false;
+    return !hasAnyLegalMoves(testBoard, color);
+  };
+
+  const isStalemate = (testBoard, color) => {
+    if (isKingInCheck(testBoard, color)) return false;
+    return !hasAnyLegalMoves(testBoard, color);
+  };
+
+  const getAllPossibleMoves = (color, testBoard = board) => {
+    const allMoves = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = testBoard[r][c];
+        if (piece && piece.color === color) {
+          const moves = getValidMovesForPiece(r, c, testBoard);
+          moves.forEach(([toR, toC]) => {
+            allMoves.push({ from: [r, c], to: [toR, toC], piece });
+          });
+        }
+      }
+    }
+    return allMoves;
+  };
+
+  const evaluateMove = (move, testBoard) => {
+    const { from, to } = move;
+    const [fromR, fromC] = from;
+    const [toR, toC] = to;
+    let score = 0;
+    
+    const targetPiece = testBoard[toR][toC];
+    if (targetPiece) {
+      score += getPieceValue(targetPiece.type) * 10;
+    }
+    
+    // Position evaluation
+    const centerDistance = Math.abs(toR - 3.5) + Math.abs(toC - 3.5);
+    score += (7 - centerDistance) * 0.5;
+    
+    // Pawn advancement
+    if (move.piece.type === 'pawn') score += (7 - toR) * 0.3;
+    
+    // Check if move gives check
+    const testBoardAfterMove = testBoard.map(r => [...r]);
+    testBoardAfterMove[toR][toC] = testBoardAfterMove[fromR][fromC];
+    testBoardAfterMove[fromR][fromC] = null;
+    if (isKingInCheck(testBoardAfterMove, 'white')) {
+      score += 5;
+    }
+    
+    // Difficulty adjustment
+    if (aiDifficulty === 'easy') {
+      score = Math.random() * 100; // Mostly random
+    } else if (aiDifficulty === 'medium') {
+      score += Math.random() * 5; // Some randomness
+    } else {
+      score += Math.random() * 2; // Minimal randomness
+    }
+    
+    return score;
+  };
 
   const makeAIMove = () => {
-    const move = getBestMove(board, difficulty);
-    if (!move) { endGame('white'); setIsThinking(false); return; }
-    const { from, to } = move;
-    const nb = applyMove(board, from, to);
-    const cap = board[to[0]][to[1]];
-    if (cap) {
-      setCaptured(p => ({ ...p, black: [...p.black, cap] }));
+    const possibleMoves = getAllPossibleMoves('black', board);
+    if (possibleMoves.length === 0) {
+      setGameOver(true);
+      setWinner('white');
+      updateStats('white');
+      setIsThinking(false);
+      playSound('win');
+      vibrate([100, 50, 100]);
+      return;
+    }
+    
+    let bestMove = possibleMoves[0];
+    let bestScore = -Infinity;
+    
+    possibleMoves.forEach(move => {
+      const score = evaluateMove(move, board);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    });
+    
+    const { from, to } = bestMove;
+    const [fromR, fromC] = from;
+    const [toR, toC] = to;
+    
+    const newBoard = board.map(row => [...row]);
+    const movingPiece = newBoard[fromR][fromC];
+    const capturedPiece = newBoard[toR][toC];
+    
+    if (capturedPiece) {
+      const newCaptured = { ...capturedPieces };
+      newCaptured.black.push(capturedPiece);
+      setCapturedPieces(newCaptured);
       playSound('capture');
-    } else { playSound('move'); }
-    setMoveHistory(p => [...p, {
-      notation: `${getPieceSymbol(board[from[0]][from[1]])} ${getSquareName(...from)} ${cap?'x':'→'} ${getSquareName(...to)}`,
-      player: 'black'
-    }]);
-    setBoard(nb);
-    setBoardHistory(p => [...p, JSON.parse(JSON.stringify(nb))]);
-    if (isCheckmate(nb, 'white')) { endGame('black'); setIsThinking(false); return; }
-    if (isStalemate(nb, 'white')) { endGame(null, true); setIsThinking(false); return; }
-    if (isKingInCheck(nb, 'white')) { setIsCheck(true); playSound('check'); vibrate([50,30,50]); }
-    else setIsCheck(false);
+      vibrate(50);
+    } else {
+      playSound('move');
+      vibrate(30);
+    }
+    
+    addMoveToHistory(fromR, fromC, toR, toC, movingPiece, capturedPiece);
+    
+    newBoard[toR][toC] = movingPiece;
+    newBoard[fromR][fromC] = null;
+    
+    if (checkPromotion(toR, movingPiece)) {
+      newBoard[toR][toC] = { type: 'queen', color: 'black' };
+    }
+    
+    setBoard(newBoard);
+    setBoardHistory(prev => [...prev, JSON.parse(JSON.stringify(newBoard))]);
+    
+    if (isKingInCheck(newBoard, 'white')) {
+      setIsCheck(true);
+      playSound('check');
+      vibrate([50, 30, 50]);
+      if (isCheckmate(newBoard, 'white')) {
+        setGameOver(true);
+        setWinner('black');
+        updateStats('black');
+        setIsThinking(false);
+        playSound('win');
+        vibrate([100, 50, 100, 50, 100]);
+        return;
+      }
+    } else {
+      setIsCheck(false);
+      if (isStalemate(newBoard, 'white')) {
+        setGameOver(true);
+        setIsDraw(true);
+        updateStats(null);
+        setIsThinking(false);
+        playSound('win');
+        vibrate([100, 50, 100]);
+        return;
+      }
+    }
+    
     setCurrentPlayer('white');
     setIsThinking(false);
   };
 
   const handleSquareClick = (row, col) => {
     if (gameOver || promotionSquare || (gameMode === 'ai' && currentPlayer === 'black')) return;
-    if (timerPreset && !timerRunning && moveHistory.length === 0) setTimerRunning(true);
 
-    if (selected) {
-      const [sr, sc] = selected;
-      const isValid = validMoves.some(([r,c]) => r===row && c===col);
+    // Start timer on first move
+    if (timerEnabled && !timerRunning && moveHistory.length === 0) {
+      setTimerRunning(true);
+    }
+
+    if (selectedSquare) {
+      const [selectedRow, selectedCol] = selectedSquare;
+      const isValid = validMoves.some(([r, c]) => r === row && c === col);
+      
       if (isValid) {
-        const nb = board.map(r => [...r]);
-        const moving = nb[sr][sc];
-        const cap = nb[row][col];
-        if (cap) { setCaptured(p => ({ ...p, [currentPlayer]: [...p[currentPlayer], cap] })); playSound('capture'); vibrate(50); }
-        else { playSound('move'); vibrate(30); }
-        setMoveHistory(p => [...p, {
-          notation: `${getPieceSymbol(moving)} ${getSquareName(sr,sc)} ${cap?'x':'→'} ${getSquareName(row,col)}`,
-          player: currentPlayer
-        }]);
-        nb[row][col] = moving; nb[sr][sc] = null;
-        // Promotion
-        if (moving.type === 'pawn' && ((moving.color==='white'&&row===0)||(moving.color==='black'&&row===7))) {
-          setBoard(nb); setBoardHistory(p => [...p, JSON.parse(JSON.stringify(nb))]);
-          setPromotionSquare({ row, col }); setSelected(null); setValidMoves([]); return;
+        const newBoard = board.map(row => [...row]);
+        const movingPiece = newBoard[selectedRow][selectedCol];
+        const capturedPiece = newBoard[row][col];
+        
+        if (capturedPiece) {
+          const newCaptured = { ...capturedPieces };
+          newCaptured[currentPlayer].push(capturedPiece);
+          setCapturedPieces(newCaptured);
+          playSound('capture');
+          vibrate(50);
+        } else {
+          playSound('move');
+          vibrate(30);
         }
-        setBoard(nb); setBoardHistory(p => [...p, JSON.parse(JSON.stringify(nb))]);
-        const next = currentPlayer === 'white' ? 'black' : 'white';
-        if (isCheckmate(nb, next)) { endGame(currentPlayer); setSelected(null); setValidMoves([]); return; }
-        if (isStalemate(nb, next)) { endGame(null, true); setSelected(null); setValidMoves([]); return; }
-        if (isKingInCheck(nb, next)) { setIsCheck(true); playSound('check'); vibrate([50,30,50]); }
-        else setIsCheck(false);
-        setCurrentPlayer(next);
-        setSelected(null); setValidMoves([]);
+        
+        addMoveToHistory(selectedRow, selectedCol, row, col, movingPiece, capturedPiece);
+        
+        newBoard[row][col] = movingPiece;
+        newBoard[selectedRow][selectedCol] = null;
+        setBoard(newBoard);
+        setBoardHistory(prev => [...prev, JSON.parse(JSON.stringify(newBoard))]);
+        
+        if (checkPromotion(row, movingPiece)) {
+          setPromotionSquare({ row, col });
+        } else {
+          const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
+          
+          if (isKingInCheck(newBoard, nextPlayer)) {
+            setIsCheck(true);
+            playSound('check');
+            vibrate([50, 30, 50]);
+            if (isCheckmate(newBoard, nextPlayer)) {
+              setGameOver(true);
+              setWinner(currentPlayer);
+              updateStats(currentPlayer);
+              setSelectedSquare(null);
+              setValidMoves([]);
+              playSound('win');
+              vibrate([100, 50, 100, 50, 100]);
+              return;
+            }
+          } else {
+            setIsCheck(false);
+            if (isStalemate(newBoard, nextPlayer)) {
+              setGameOver(true);
+              setIsDraw(true);
+              updateStats(null);
+              setSelectedSquare(null);
+              setValidMoves([]);
+              playSound('win');
+              vibrate([100, 50, 100]);
+              return;
+            }
+          }
+          
+          setCurrentPlayer(nextPlayer);
+        }
+        
+        setSelectedSquare(null);
+        setValidMoves([]);
       } else if (board[row][col]?.color === currentPlayer) {
-        playSound('select'); setSelected([row,col]); setValidMoves(getValidMoves(row, col, board));
+        vibrate(20);
+        setSelectedSquare([row, col]);
+        setValidMoves(getValidMovesForPiece(row, col));
       } else {
-        playSound('error'); setSelected(null); setValidMoves([]);
+        vibrate(10);
+        playSound('error');
+        setSelectedSquare(null);
+        setValidMoves([]);
       }
     } else if (board[row][col]?.color === currentPlayer) {
-      playSound('select'); vibrate(20); setSelected([row,col]); setValidMoves(getValidMoves(row, col, board));
+      vibrate(20);
+      setSelectedSquare([row, col]);
+      setValidMoves(getValidMovesForPiece(row, col));
     }
   };
 
-  const promotePawn = (type) => {
-    if (!promotionSquare) return;
-    const nb = board.map(r => [...r]);
-    nb[promotionSquare.row][promotionSquare.col] = { type, color: currentPlayer };
-    setBoard(nb); setBoardHistory(p => [...p, JSON.parse(JSON.stringify(nb))]);
-    setPromotionSquare(null);
-    const next = currentPlayer === 'white' ? 'black' : 'white';
-    if (isCheckmate(nb, next)) { endGame(currentPlayer); return; }
-    if (isStalemate(nb, next)) { endGame(null, true); return; }
-    if (isKingInCheck(nb, next)) { setIsCheck(true); playSound('check'); }
-    else setIsCheck(false);
-    setCurrentPlayer(next);
-    playSound('move');
+  const isValidMoveSquare = (row, col) => {
+    return validMoves.some(([r, c]) => r === row && c === col);
   };
 
-  const undoMove = () => {
-    if (boardHistory.length <= 1 || gameOver) return;
-    const hist = [...boardHistory]; hist.pop();
-    const prev = hist[hist.length - 1];
-    setBoardHistory(hist);
-    setBoard(JSON.parse(JSON.stringify(prev)));
-    setMoveHistory(p => p.slice(0,-1));
-    setCurrentPlayer(p => p === 'white' ? 'black' : 'white');
-    setSelected(null); setValidMoves([]); setIsCheck(false);
-    playSound('move'); vibrate(30);
-  };
-
-  // ── HOME SCREEN ──────────────────────────────────────────────────────────────
   if (!gameMode) {
     return (
-      <div style={{ minHeight:'100vh', background: t.bg, display:'flex', flexDirection:'column', fontFamily:"'Georgia', serif" }}>
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
-          <div style={{ maxWidth:380, width:'100%', background:'rgba(255,255,255,0.05)', borderRadius:20, padding:'2rem', border:'1px solid rgba(255,255,255,0.1)' }}>
-            <div style={{ textAlign:'center', marginBottom:'2rem' }}>
-              <div style={{ fontSize:56, marginBottom:8 }}>♔</div>
-              <h1 style={{ color:'white', fontSize:36, fontWeight:'bold', margin:'0 0 4px' }}>ChessX</h1>
-              <p style={{ color:'rgba(255,255,255,0.5)', margin:0 }}>Choose your game mode</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+        <div className="flex-grow flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl">
+            <div className="text-center mb-8">
+              <Crown className="text-yellow-400 mx-auto mb-4" size={64} />
+              <h1 className="text-4xl font-bold text-white mb-2">ChessX</h1>
+              <p className="text-slate-300">Choose your game mode</p>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:16 }}>
-              <button onClick={() => setGameMode('pvp')} style={{ background:'#3b82f6', color:'white', border:'none', borderRadius:12, padding:'14px', fontSize:16, fontWeight:'bold', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
-                <User size={20}/> 2 Players (Local)
+
+            <div className="space-y-4">
+              <button
+                onClick={() => setGameMode('pvp')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
+              >
+                <User size={24} />
+                2 Players (Local)
               </button>
-              <button onClick={() => setGameMode('ai')} style={{ background:'#8b5cf6', color:'white', border:'none', borderRadius:12, padding:'14px', fontSize:16, fontWeight:'bold', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
-                <Cpu size={20}/> vs Computer (AI)
+
+              <button
+                onClick={() => setGameMode('ai')}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
+              >
+                <Cpu size={24} />
+                vs Computer (AI)
               </button>
-              <button onClick={() => setShowStats(true)} style={{ background:'#16a34a', color:'white', border:'none', borderRadius:12, padding:'14px', fontSize:16, fontWeight:'bold', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10 }}>
-                <Trophy size={20}/> Statistics
+
+              <button
+                onClick={() => setShowStats(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-3 transition-all active:scale-95 text-lg"
+              >
+                <Trophy size={24} />
+                View Statistics
               </button>
+            </div>
+
+            <div className="mt-6 bg-slate-700 p-4 rounded-lg text-slate-300 text-sm">
+              <p className="font-bold text-white mb-2">Game Modes:</p>
+              <p className="mb-1">🎮 <strong>2 Players:</strong> Play with a friend locally</p>
+              <p>🤖 <strong>vs Computer:</strong> Practice against AI</p>
             </div>
           </div>
         </div>
 
         {showStats && (
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50, padding:'1rem' }}>
-            <div style={{ background:'#1e293b', borderRadius:20, padding:'2rem', maxWidth:360, width:'100%' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-                <h2 style={{ color:'white', margin:0, fontSize:22 }}>📊 Your Stats</h2>
-                <button onClick={() => setShowStats(false)} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.5)', fontSize:20, cursor:'pointer' }}>✕</button>
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Trophy className="text-yellow-400" />
+                  Your Stats
+                </h2>
+                <button
+                  onClick={() => setShowStats(false)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
               </div>
-              <div style={{ display:'grid', gap:10 }}>
-                <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:10, padding:14 }}>
-                  <p style={{ color:'rgba(255,255,255,0.5)', margin:'0 0 4px', fontSize:12 }}>Games Played</p>
-                  <p style={{ color:'white', margin:0, fontSize:28, fontWeight:'bold' }}>{stats.gamesPlayed}</p>
+              
+              <div className="space-y-4">
+                <div className="bg-slate-700 p-4 rounded-lg">
+                  <p className="text-slate-400 text-sm">Games Played</p>
+                  <p className="text-3xl font-bold text-white">{stats.gamesPlayed}</p>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-                  {[['Wins','#16a34a',stats.wins],['Losses','#dc2626',stats.losses],['Draws','#ca8a04',stats.draws]].map(([l,c,v]) => (
-                    <div key={l} style={{ background:`${c}22`, border:`1px solid ${c}`, borderRadius:10, padding:10, textAlign:'center' }}>
-                      <p style={{ color:c, margin:'0 0 4px', fontSize:11 }}>{l}</p>
-                      <p style={{ color:'white', margin:0, fontSize:22, fontWeight:'bold' }}>{v}</p>
-                    </div>
-                  ))}
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-green-600 bg-opacity-20 border-2 border-green-600 p-3 rounded-lg text-center">
+                    <p className="text-green-400 text-sm font-semibold">Wins</p>
+                    <p className="text-2xl font-bold text-white">{stats.wins}</p>
+                  </div>
+                  
+                  <div className="bg-red-600 bg-opacity-20 border-2 border-red-600 p-3 rounded-lg text-center">
+                    <p className="text-red-400 text-sm font-semibold">Losses</p>
+                    <p className="text-2xl font-bold text-white">{stats.losses}</p>
+                  </div>
+                  
+                  <div className="bg-yellow-600 bg-opacity-20 border-2 border-yellow-600 p-3 rounded-lg text-center">
+                    <p className="text-yellow-400 text-sm font-semibold">Draws</p>
+                    <p className="text-2xl font-bold text-white">{stats.draws}</p>
+                  </div>
                 </div>
-                <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:10, padding:14 }}>
-                  <p style={{ color:'rgba(255,255,255,0.5)', margin:'0 0 4px', fontSize:12 }}>Win Streak</p>
-                  <p style={{ color:'#f59e0b', margin:0, fontSize:28, fontWeight:'bold' }}>🔥 {stats.winStreak}</p>
+                
+                <div className="bg-slate-700 p-4 rounded-lg">
+                  <p className="text-slate-400 text-sm">Current Win Streak</p>
+                  <p className="text-3xl font-bold text-yellow-400 flex items-center gap-2">
+                    🔥 {stats.winStreak}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setShowStats(false)} style={{ width:'100%', marginTop:16, background:'#3b82f6', color:'white', border:'none', borderRadius:10, padding:12, fontSize:15, fontWeight:'bold', cursor:'pointer' }}>Close</button>
+              
+              <button
+                onClick={() => setShowStats(false)}
+                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold transition-all active:scale-95"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
 
-        <footer style={{ background:'rgba(0,0,0,0.3)', padding:'12px', textAlign:'center' }}>
-          <span style={{ color:'rgba(255,255,255,0.4)', fontSize:13 }}>from Musfirah </span>
-          <span style={{ color:'#87CEEB' }}>🦋</span>
+        <footer className="bg-slate-800 border-t border-slate-700 py-4">
+          <div className="container mx-auto px-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
+              <span>from Musfirah</span>
+              <span className="text-lg" style={{ color: '#87CEEB' }}>🦋</span>
+            </div>
+          </div>
         </footer>
       </div>
     );
   }
 
-  // ── GAME SCREEN ──────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight:'100vh', background:t.bg, display:'flex', flexDirection:'column', fontFamily:"'Georgia', serif" }}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      <div className="flex-grow p-2 sm:p-3 md:p-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-3 md:mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 md:mb-2 flex items-center justify-center gap-2">
+              <Crown className="text-yellow-400" size={28} />
+              <span className="sm:inline">ChessX</span>
+              {gameMode === 'ai' && <Cpu className="text-purple-400" size={24} />}
+            </h1>
+            <p className="text-slate-300 text-xs sm:text-sm md:text-base">
+              {gameMode === 'ai' ? 'vs Computer' : '2 Players'}
+              {gameMode === 'ai' && (
+                <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
+                  aiDifficulty === 'easy' ? 'bg-green-600' : 
+                  aiDifficulty === 'medium' ? 'bg-yellow-600' : 'bg-red-600'
+                }`}>
+                  {aiDifficulty.toUpperCase()}
+                </span>
+              )}
+            </p>
+            <p className="text-slate-300 mt-1 text-xs sm:text-sm">
+              Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>
+                {currentPlayer.toUpperCase()}
+              </span>
+              {isCheck && <span className="text-red-500 ml-2 font-bold text-xs sm:text-sm">⚠️ CHECK!</span>}
+              {isThinking && <span className="text-purple-400 ml-2 animate-pulse text-xs sm:text-sm">🤔 Thinking...</span>}
+            </p>
+            
+            {timerEnabled && (
+              <div className="flex justify-center gap-2 md:gap-4 mt-1.5 md:mt-2">
+                <div className={`px-2 py-0.5 md:px-3 md:py-1 rounded text-xs md:text-sm ${currentPlayer === 'white' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                  <span className="text-white font-mono font-bold">{formatTime(whiteTime)}</span>
+                </div>
+                <div className={`px-2 py-0.5 md:px-3 md:py-1 rounded text-xs md:text-sm ${currentPlayer === 'black' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                  <span className="text-white font-mono font-bold">{formatTime(blackTime)}</span>
+                </div>
+              </div>
+            )}
+          </div>
 
-      {/* ── TOP NAVBAR ── */}
-      <div style={{ background:'rgba(0,0,0,0.4)', borderBottom:'1px solid rgba(255,255,255,0.08)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <Crown size={22} style={{ color:'#facc15' }}/>
-          <span style={{ color:'white', fontWeight:'bold', fontSize:18 }}>ChessX</span>
-          {gameMode === 'ai' && (
-            <span style={{ background: difficulty==='easy'?'#16a34a':difficulty==='medium'?'#ca8a04':'#dc2626', color:'white', fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:'bold' }}>
-              {difficulty.toUpperCase()}
-            </span>
+          {gameOver && !isDraw && (
+            <div className="bg-green-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg mb-3 md:mb-4 text-center font-bold text-sm sm:text-lg md:text-xl animate-pulse">
+              Checkmate! {winner?.toUpperCase()} Wins! 🎉
+            </div>
           )}
-        </div>
 
-        {/* Status */}
-        <div style={{ position:'absolute', left:'50%', transform:'translateX(-50%)', textAlign:'center' }}>
-          <span style={{ color:'white', fontSize:12 }}>
-            {isThinking ? '🤔 Thinking...' : `${currentPlayer.toUpperCase()}'s turn`}
-          </span>
-          {isCheck && <span style={{ color:'#ef4444', fontSize:11, fontWeight:'bold', marginLeft:6 }}>⚠️ CHECK</span>}
-        </div>
+          {gameOver && isDraw && (
+            <div className="bg-yellow-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg mb-3 md:mb-4 text-center font-bold text-sm sm:text-lg md:text-xl">
+              Stalemate! <span className="hidden sm:inline">Game is a </span>Draw! 🤝
+            </div>
+          )}
 
-        {/* Heart Settings Button */}
-        <div style={{ position:'relative' }} ref={settingsRef}>
-          <button
-            onClick={() => setShowSettings(s => !s)}
-            style={{
-              background: showSettings ? 'rgba(244,114,182,0.25)' : 'rgba(244,114,182,0.1)',
-              border: `1px solid ${showSettings ? '#f472b6' : 'rgba(244,114,182,0.4)'}`,
-              borderRadius:'50%', width:40, height:40, cursor:'pointer', color:'#f472b6',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              transition:'all 0.2s',
-              boxShadow: showSettings ? '0 0 12px rgba(244,114,182,0.6)' : '0 0 6px rgba(244,114,182,0.3)'
-            }}
-          >
-            <HeartIcon size={18} glow={showSettings}/>
-          </button>
-
-          {/* Settings Dropdown */}
-          {showSettings && (
-            <div style={{
-              position:'absolute', right:0, top:48, width:280, background:'#0f172a',
-              borderRadius:16, border:'1px solid rgba(244,114,182,0.3)', padding:16, zIndex:100,
-              boxShadow:'0 20px 60px rgba(0,0,0,0.8)'
-            }}>
-              {/* Header */}
-              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:14, paddingBottom:10, borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-                <span style={{ color:'#f472b6', fontSize:16 }}><HeartIcon size={14} glow/></span>
-                <span style={{ color:'white', fontWeight:'bold', fontSize:13 }}>Customize</span>
-              </div>
-
-              {/* Theme */}
-              <p style={{ color:'rgba(255,255,255,0.4)', fontSize:10, letterSpacing:'0.08em', margin:'0 0 8px' }}>THEME</p>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:14 }}>
-                {Object.entries(THEMES).map(([key, th]) => (
-                  <button key={key} onClick={() => setTheme(key)} style={{
-                    background: key===theme ? th.accent+'33' : 'rgba(255,255,255,0.05)',
-                    border: key===theme ? `2px solid ${th.accent}` : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius:8, padding:'7px 4px', cursor:'pointer', textAlign:'center', position:'relative'
-                  }}>
-                    <div style={{ display:'flex', gap:2, justifyContent:'center', marginBottom:3 }}>
-                      <div style={{ width:8, height:8, background:th.light, borderRadius:1 }}/>
-                      <div style={{ width:8, height:8, background:th.dark, borderRadius:1 }}/>
-                    </div>
-                    <p style={{ color: key===theme ? th.accent : 'rgba(255,255,255,0.4)', fontSize:9, margin:0, fontWeight: key===theme?'bold':'normal' }}>{th.name}</p>
-                    {key===theme && <span style={{ position:'absolute', top:2, right:4, color:th.accent, fontSize:8 }}>✓</span>}
-                  </button>
-                ))}
-              </div>
-
-              {/* Difficulty (AI only) */}
-              {gameMode === 'ai' && <>
-                <p style={{ color:'rgba(255,255,255,0.4)', fontSize:10, letterSpacing:'0.08em', margin:'0 0 8px' }}>DIFFICULTY</p>
-                <div style={{ display:'flex', gap:6, marginBottom:14 }}>
-                  {[['easy','😊','#16a34a'],['medium','🧐','#ca8a04'],['hard','😈','#dc2626']].map(([d,e,c]) => (
-                    <button key={d} onClick={() => setDifficulty(d)} style={{
-                      flex:1, background: difficulty===d?`${c}33`:'rgba(255,255,255,0.05)',
-                      border: difficulty===d?`1px solid ${c}`:'1px solid rgba(255,255,255,0.08)',
-                      borderRadius:8, padding:'7px 4px', color: difficulty===d?c:'rgba(255,255,255,0.4)',
-                      fontSize:10, fontWeight:'bold', cursor:'pointer'
-                    }}>{e} {d.charAt(0).toUpperCase()+d.slice(1)}</button>
+          {promotionSquare && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+              <div className="bg-slate-800 p-4 md:p-6 rounded-xl shadow-2xl">
+                <h3 className="text-white text-lg md:text-xl font-bold mb-3 md:mb-4 text-center">Promote Pawn</h3>
+                <div className="flex gap-3 md:gap-4">
+                  {['queen', 'rook', 'bishop', 'knight'].map(pieceType => (
+                    <button
+                      key={pieceType}
+                      onClick={() => promotionSquare && promotePawn(promotionSquare.row, promotionSquare.col, pieceType)}
+                      className="bg-slate-700 hover:bg-slate-600 text-white p-3 md:p-4 rounded-lg transition-all active:scale-95 text-4xl md:text-5xl"
+                    >
+                      {getPieceSymbol({ type: pieceType, color: currentPlayer })}
+                    </button>
                   ))}
                 </div>
-              </>}
-
-              {/* Timer */}
-              <p style={{ color:'rgba(255,255,255,0.4)', fontSize:10, letterSpacing:'0.08em', margin:'0 0 8px' }}>TIMER PER PLAYER</p>
-              <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom: showCustomTime?8:14 }}>
-                {[null,1,3,5,10,'custom'].map(v => (
-                  <button key={String(v)} onClick={() => {
-                    if (v === 'custom') { setShowCustomTime(s => !s); return; }
-                    setTimerPreset(v); setShowCustomTime(false);
-                    const secs = v ? v*60 : 600;
-                    setWhiteTime(secs); setBlackTime(secs); setTimerRunning(false);
-                  }} style={{
-                    background: (v==='custom'?showCustomTime:timerPreset===v) ? 'rgba(59,130,246,0.3)':'rgba(255,255,255,0.05)',
-                    border: (v==='custom'?showCustomTime:timerPreset===v) ? '1px solid #3b82f6':'1px solid rgba(255,255,255,0.08)',
-                    borderRadius:6, padding:'5px 8px',
-                    color: (v==='custom'?showCustomTime:timerPreset===v) ? '#93c5fd':'rgba(255,255,255,0.5)',
-                    fontSize:10, cursor:'pointer', fontWeight:'bold'
-                  }}>{v===null?'Off':v==='custom'?'Custom':`${v}m`}</button>
-                ))}
-              </div>
-              {showCustomTime && (
-                <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center' }}>
-                  <input type="number" min={1} max={60} value={customTime}
-                    onChange={e => setCustomTime(Number(e.target.value))}
-                    style={{ flex:1, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, padding:'5px 8px', color:'white', fontSize:12 }}/>
-                  <span style={{ color:'rgba(255,255,255,0.4)', fontSize:11 }}>min</span>
-                  <button onClick={() => {
-                    setTimerPreset(customTime); setShowCustomTime(false);
-                    setWhiteTime(customTime*60); setBlackTime(customTime*60); setTimerRunning(false);
-                  }} style={{ background:'#3b82f6', border:'none', borderRadius:6, padding:'5px 10px', color:'white', fontSize:11, cursor:'pointer', fontWeight:'bold' }}>
-                    Set
-                  </button>
-                </div>
-              )}
-
-              {/* Sound */}
-              <p style={{ color:'rgba(255,255,255,0.4)', fontSize:10, letterSpacing:'0.08em', margin:'0 0 8px' }}>SOUND</p>
-              <div style={{ display:'flex', gap:6 }}>
-                {[['off','Off','#64748b'],['simple','Simple','#8b5cf6'],['advanced','Advanced','#f472b6']].map(([m,l,c]) => (
-                  <button key={m} onClick={() => setSoundMode(m)} style={{
-                    flex:1, background: soundMode===m?`${c}33`:'rgba(255,255,255,0.05)',
-                    border: soundMode===m?`1px solid ${c}`:'1px solid rgba(255,255,255,0.08)',
-                    borderRadius:8, padding:'7px 4px', color: soundMode===m?c:'rgba(255,255,255,0.4)',
-                    fontSize:10, fontWeight:'bold', cursor:'pointer'
-                  }}>{l}</button>
-                ))}
               </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Timer Bar */}
-      {timerPreset && (
-        <div style={{ background:'rgba(0,0,0,0.3)', padding:'6px 16px', display:'flex', justifyContent:'center', gap:16 }}>
-          <div style={{ background: currentPlayer==='white'?'rgba(59,130,246,0.4)':'rgba(255,255,255,0.08)', borderRadius:8, padding:'4px 14px', display:'flex', gap:6, alignItems:'center' }}>
-            <span style={{ color:'rgba(255,255,255,0.6)', fontSize:11 }}>White</span>
-            <span style={{ color:'white', fontFamily:'monospace', fontWeight:'bold', fontSize:14, color: whiteTime<30?'#ef4444':'white' }}>{formatTime(whiteTime)}</span>
-          </div>
-          <div style={{ background: currentPlayer==='black'?'rgba(59,130,246,0.4)':'rgba(255,255,255,0.08)', borderRadius:8, padding:'4px 14px', display:'flex', gap:6, alignItems:'center' }}>
-            <span style={{ color:'rgba(255,255,255,0.6)', fontSize:11 }}>Black</span>
-            <span style={{ fontFamily:'monospace', fontWeight:'bold', fontSize:14, color: blackTime<30?'#ef4444':'white' }}>{formatTime(blackTime)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Game Over Banner */}
-      {gameOver && (
-        <div style={{ background: isDraw?'#854d0e':'#166534', color:'white', padding:'10px', textAlign:'center', fontWeight:'bold', fontSize:16, animation:'pulse 1s infinite' }}>
-          {isDraw ? 'Stalemate — Draw! 🤝' : `Checkmate! ${winner?.toUpperCase()} Wins! 🎉`}
-        </div>
-      )}
-
-      <div style={{ flex:1, padding:'8px', overflowX:'auto' }}>
-        <div style={{ maxWidth:900, margin:'0 auto' }}>
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
-
-            {/* Promotion Modal */}
-            {promotionSquare && (
-              <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
-                <div style={{ background:'#1e293b', borderRadius:16, padding:24, textAlign:'center' }}>
-                  <h3 style={{ color:'white', marginBottom:16 }}>Promote Pawn</h3>
-                  <div style={{ display:'flex', gap:12 }}>
-                    {['queen','rook','bishop','knight'].map(type => (
-                      <button key={type} onClick={() => promotePawn(type)} style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:10, padding:12, cursor:'pointer', fontSize:42, color: currentPlayer==='white'?'white':'#1e293b' }}>
-                        {SYMBOLS[type]}
-                      </button>
-                    ))}
-                  </div>
+          <div className="flex flex-col lg:flex-row gap-3 items-start justify-center">
+            {/* Move History Panel */}
+            {showMoveHistory && (
+              <div className="w-full lg:w-56 bg-slate-800 p-3 rounded-lg order-2 lg:order-1">
+                <h3 className="text-white font-bold mb-2 flex items-center gap-2 text-sm">
+                  <TrendingUp size={16} />
+                  Moves
+                </h3>
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {moveHistory.length === 0 ? (
+                    <p className="text-slate-400 text-xs text-center">No moves yet</p>
+                  ) : (
+                    moveHistory.map((move, idx) => (
+                      <div 
+                        key={idx}
+                        className={`text-xs p-1.5 rounded ${
+                          move.player === 'white' ? 'bg-slate-700' : 'bg-slate-600'
+                        }`}
+                      >
+                        <span className="text-slate-400 mr-1">{idx + 1}.</span>
+                        <span className="text-white">{move.notation}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Board + Side panels */}
-            <div style={{ display:'flex', gap:12, alignItems:'flex-start', flexWrap:'wrap', justifyContent:'center' }}>
-
-              {/* Move History */}
-              {showMoveHistory && (
-                <div style={{ width:160, background:'rgba(0,0,0,0.3)', borderRadius:12, padding:12, border:'1px solid rgba(255,255,255,0.08)' }}>
-                  <h3 style={{ color:'white', fontSize:13, fontWeight:'bold', margin:'0 0 8px', display:'flex', alignItems:'center', gap:4 }}><TrendingUp size={14}/>Moves</h3>
-                  <div style={{ maxHeight:320, overflowY:'auto' }}>
-                    {moveHistory.length === 0
-                      ? <p style={{ color:'rgba(255,255,255,0.3)', fontSize:11, textAlign:'center' }}>No moves yet</p>
-                      : moveHistory.map((m,i) => (
-                        <div key={i} style={{ background: m.player==='white'?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.04)', borderRadius:4, padding:'3px 6px', marginBottom:2 }}>
-                          <span style={{ color:'rgba(255,255,255,0.3)', fontSize:10 }}>{i+1}. </span>
-                          <span style={{ color:'white', fontSize:10 }}>{m.notation}</span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Chess Board */}
-              <div style={{ border:`3px solid rgba(255,255,255,0.15)`, borderRadius:4, overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.6)' }}>
-                {board.map((row, ri) => (
-                  <div key={ri} style={{ display:'flex' }}>
-                    {row.map((piece, ci) => {
-                      const isLight = (ri+ci)%2===0;
-                      const isSel = selected && selected[0]===ri && selected[1]===ci;
-                      const isVM = validMoves.some(([r,c]) => r===ri && c===ci);
-                      const sqColor = isLight ? t.light : t.dark;
+            {/* Chess Board */}
+            <div className="flex justify-center order-1 lg:order-2">
+              <div className="inline-block border-2 sm:border-3 md:border-4 border-slate-700 bg-slate-800 shadow-2xl">
+                {board.map((row, rowIndex) => (
+                  <div key={rowIndex} className="flex">
+                    {row.map((piece, colIndex) => {
+                      const isLight = (rowIndex + colIndex) % 2 === 0;
+                      const isSelected = selectedSquare && selectedSquare[0] === rowIndex && selectedSquare[1] === colIndex;
+                      const isValidMove = isValidMoveSquare(rowIndex, colIndex);
                       return (
-                        <button key={ci} onClick={() => handleSquareClick(ri,ci)}
-                          disabled={isThinking||!!promotionSquare}
-                          style={{
-                            width:'clamp(36px,10vw,72px)', height:'clamp(36px,10vw,72px)',
-                            background: isSel ? '#f59e0b' : sqColor,
-                            border: isSel ? '2px inset rgba(0,0,0,0.3)' : isVM ? '2px inset rgba(74,222,128,0.8)' : 'none',
-                            outline:'none', cursor: isThinking?'not-allowed':'pointer',
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                            position:'relative', transition:'background 0.1s',
-                            boxShadow: isSel ? 'inset 0 0 0 3px rgba(245,158,11,0.8)' : isVM ? 'inset 0 0 0 2px rgba(74,222,128,0.6)' : 'none'
-                          }}>
-                          <span style={{
-                            fontSize:'clamp(20px,6vw,44px)', lineHeight:1,
-                            color: piece?.color==='white' ? '#ffffff' : '#111111',
-                            textShadow: piece?.color==='white' ? '0 1px 3px rgba(0,0,0,0.9)' : '0 1px 3px rgba(255,255,255,0.6)',
-                            userSelect:'none'
-                          }}>{getPieceSymbol(piece)}</span>
-                          {isVM && !piece && (
-                            <div style={{ position:'absolute', width:'28%', height:'28%', background:'rgba(74,222,128,0.6)', borderRadius:'50%', pointerEvents:'none' }}/>
+                        <button
+                          key={`${rowIndex}-${colIndex}`}
+                          onClick={() => handleSquareClick(rowIndex, colIndex)}
+                          disabled={isThinking || !!promotionSquare}
+                          className={`
+                            w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20
+                            flex items-center justify-center 
+                            text-2xl sm:text-3xl md:text-4xl lg:text-5xl
+                            font-bold transition-all duration-200 relative
+                            ${isLight ? themes[theme].light : themes[theme].dark}
+                            ${isSelected ? 'ring-2 sm:ring-3 md:ring-4 ring-blue-500 scale-95' : ''}
+                            ${isValidMove ? 'ring-2 sm:ring-3 md:ring-4 ring-green-400' : ''}
+                            ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110 active:scale-95'}
+                          `}
+                        >
+                          <span className={`
+                            ${piece?.color === 'white' 
+                              ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.9)]' 
+                              : 'text-slate-900 drop-shadow-[0_0_3px_rgba(255,255,255,0.7)]'}
+                          `}>
+                            {getPieceSymbol(piece)}
+                          </span>
+                          {isValidMove && !piece && (
+                            <div className="absolute w-2 h-2 sm:w-3 sm:h-3 md:w-4 md:h-4 bg-green-500 rounded-full opacity-70" />
                           )}
                         </button>
                       );
@@ -825,80 +1018,183 @@ const ChessGame = () => {
                   </div>
                 ))}
               </div>
+            </div>
 
-              {/* Captured Pieces */}
-              <div style={{ width:140, background:'rgba(0,0,0,0.3)', borderRadius:12, padding:12, border:'1px solid rgba(255,255,255,0.08)' }}>
-                <h3 style={{ color:'white', fontSize:13, fontWeight:'bold', margin:'0 0 8px' }}>Captured</h3>
-                {[['White','white'],['Black','black']].map(([label,color]) => (
-                  <div key={color} style={{ marginBottom:10 }}>
-                    <p style={{ color:'rgba(255,255,255,0.4)', fontSize:11, margin:'0 0 4px' }}>{label}:</p>
-                    <div style={{ display:'flex', flexWrap:'wrap', gap:2 }}>
-                      {captured[color].length === 0
-                        ? <span style={{ color:'rgba(255,255,255,0.2)', fontSize:10 }}>None</span>
-                        : captured[color].map((p,i) => (
-                          <span key={i} style={{ fontSize:18, color: p.color==='white'?'white':'#111', textShadow: p.color==='white'?'0 1px 2px rgba(0,0,0,0.8)':'0 1px 2px rgba(255,255,255,0.5)' }}>
-                            {getPieceSymbol(p)}
-                          </span>
-                        ))}
-                    </div>
+            {/* Captured Pieces Panel */}
+            <div className="w-full lg:w-56 xl:w-64 bg-slate-800 p-3 md:p-4 rounded-lg order-3">
+              <h3 className="text-white font-bold mb-2 md:mb-3 text-sm md:text-base">Captured</h3>
+              <div className="space-y-2 md:space-y-3">
+                <div>
+                  <p className="text-xs md:text-sm text-slate-400 mb-1">White:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {capturedPieces.white.map((piece, idx) => (
+                      <span key={idx} className="text-xl md:text-2xl text-slate-900">
+                        {getPieceSymbol(piece)}
+                      </span>
+                    ))}
+                    {capturedPieces.white.length === 0 && (
+                      <span className="text-slate-600 text-xs">None</span>
+                    )}
                   </div>
+                </div>
+                <div>
+                  <p className="text-xs md:text-sm text-slate-400 mb-1">Black:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {capturedPieces.black.map((piece, idx) => (
+                      <span key={idx} className="text-xl md:text-2xl text-white">
+                        {getPieceSymbol(piece)}
+                      </span>
+                    ))}
+                    {capturedPieces.black.length === 0 && (
+                      <span className="text-slate-600 text-xs">None</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center flex flex-wrap gap-2 justify-center mt-4">
+            <button
+              onClick={() => setGameMode(null)}
+              className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold transition-all active:scale-95 text-xs sm:text-sm md:text-base"
+            >
+              <span className="hidden md:inline">Change </span>Mode
+            </button>
+            
+            <button
+              onClick={initializeBoard}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base"
+            >
+              <RotateCcw size={16} className="md:w-5 md:h-5" />
+              <span className="hidden sm:inline">New</span>
+              <span className="hidden md:inline"> Game</span>
+            </button>
+            
+            <button
+              onClick={undoMove}
+              disabled={boardHistory.length <= 1 || gameOver || (gameMode === 'ai' && currentPlayer === 'black')}
+              className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 disabled:opacity-50 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base"
+            >
+              <Undo size={16} className="md:w-5 md:h-5" />
+              Undo
+            </button>
+            
+            <button
+              onClick={() => setShowMoveHistory(!showMoveHistory)}
+              className={`${showMoveHistory ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}
+            >
+              <TrendingUp size={16} className="md:w-5 md:h-5" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`${soundEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}
+            >
+              {soundEnabled ? <Volume2 size={16} className="md:w-5 md:h-5" /> : <VolumeX size={16} className="md:w-5 md:h-5" />}
+              <span className="hidden md:inline">{soundEnabled ? 'Sound' : 'Muted'}</span>
+            </button>
+            
+            <button
+              onClick={() => setTimerEnabled(!timerEnabled)}
+              className={`${timerEnabled ? 'bg-green-600' : 'bg-slate-600'} hover:bg-green-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}
+            >
+              <Clock size={16} className="md:w-5 md:h-5" />
+              <span className="hidden md:inline">Timer</span>
+            </button>
+          </div>
+
+          {gameMode === 'ai' && (
+            <div className="mt-3 md:mt-4 bg-slate-800 p-3 md:p-4 rounded-lg">
+              <h3 className="text-white font-bold mb-2 md:mb-3 text-sm md:text-base">AI Difficulty</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setAiDifficulty('easy')}
+                  className={`flex-1 py-2 px-2 md:px-4 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm ${
+                    aiDifficulty === 'easy' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  😊 Easy
+                </button>
+                <button
+                  onClick={() => setAiDifficulty('medium')}
+                  className={`flex-1 py-2 px-2 md:px-4 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm ${
+                    aiDifficulty === 'medium' ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  🧐 <span className="hidden sm:inline">Medium</span><span className="sm:hidden">Med</span>
+                </button>
+                <button
+                  onClick={() => setAiDifficulty('hard')}
+                  className={`flex-1 py-2 px-2 md:px-4 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm ${
+                    aiDifficulty === 'hard' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  😈 Hard
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-slate-800 p-3 md:p-4 rounded-lg text-slate-300 text-xs md:text-sm mt-3 md:mt-4">
+            <h3 className="font-bold text-white mb-2 text-sm md:text-base">How to Play:</h3>
+            <ul className="space-y-0.5 md:space-y-1">
+              <li className="md:hidden">• Tap piece (green = valid moves)</li>
+              <li className="hidden md:block">• Tap piece to select (green shows valid moves)</li>
+              <li className="md:hidden">• Check ⚠️ | Checkmate 🎉 | Stalemate 🤝</li>
+              <li className="hidden md:block">• King in danger = CHECK warning ⚠️</li>
+              <li className="hidden md:block">• King trapped = CHECKMATE (you win!) 🎉</li>
+              <li className="hidden md:block">• No legal moves but safe = STALEMATE (draw) 🤝</li>
+              <li>• Use UNDO to take back <span className="hidden md:inline">your last </span>move</li>
+              {gameMode === 'ai' && <li>• You play as WHITE<span className="hidden md:inline"> vs computer</span></li>}
+            </ul>
+          </div>
+
+          <button
+            onClick={() => setShowThemePanel(!showThemePanel)}
+            className="fixed bottom-20 right-4 md:bottom-24 md:right-6 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-white p-3 md:p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40"
+            title="Change Theme"
+          >
+            <Palette size={20} className="md:w-7 md:h-7" />
+          </button>
+
+          {showThemePanel && (
+            <div className="fixed right-4 bottom-36 md:right-6 md:bottom-40 bg-slate-800 rounded-xl shadow-2xl p-3 md:p-4 z-40 border-2 border-slate-700 max-h-80 md:max-h-96 overflow-y-auto">
+              <h3 className="text-white font-bold mb-2 md:mb-3 text-center text-sm md:text-base">Theme</h3>
+              <div className="space-y-1.5 md:space-y-2">
+                {Object.entries(themes).map(([key, t]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setTheme(key);
+                      setShowThemePanel(false);
+                      vibrate(30);
+                    }}
+                    className={`w-full flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg transition-all active:scale-95 text-xs md:text-sm ${
+                      theme === key 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    <span className="text-lg md:text-2xl">{t.icon}</span>
+                    <span className="font-semibold text-xs md:text-sm">{t.name}</span>
+                    {theme === key && <span className="ml-auto text-xs md:text-base">✓</span>}
+                  </button>
                 ))}
               </div>
             </div>
-
-            {/* Action Buttons */}
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center' }}>
-              {[
-                { label:'Mode', icon:<RotateCcw size={15}/>, action:()=>setGameMode(null), color:'#475569' },
-                { label:'New Game', icon:<RotateCcw size={15}/>, action:initBoard, color:'#3b82f6' },
-                { label:'Undo', icon:<Undo size={15}/>, action:undoMove, color:'#ca8a04', disabled: boardHistory.length<=1||gameOver },
-                { label:'History', icon:<TrendingUp size={15}/>, action:()=>setShowMoveHistory(s=>!s), color: showMoveHistory?'#16a34a':'#475569' },
-                { label:'Stats', icon:<Trophy size={15}/>, action:()=>setShowStats(true), color:'#8b5cf6' },
-              ].map(btn => (
-                <button key={btn.label} onClick={btn.action} disabled={btn.disabled}
-                  style={{ background: btn.disabled?'#374151':btn.color, color:'white', border:'none', borderRadius:10, padding:'8px 14px', fontSize:12, fontWeight:'bold', cursor:btn.disabled?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6, opacity:btn.disabled?0.5:1, transition:'all 0.15s' }}>
-                  {btn.icon}{btn.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Stats Modal */}
-      {showStats && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50, padding:'1rem' }}>
-          <div style={{ background:'#1e293b', borderRadius:20, padding:'2rem', maxWidth:360, width:'100%' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-              <h2 style={{ color:'white', margin:0 }}>📊 Stats</h2>
-              <button onClick={() => setShowStats(false)} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.5)', fontSize:20, cursor:'pointer' }}>✕</button>
-            </div>
-            <div style={{ display:'grid', gap:10 }}>
-              <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:10, padding:14 }}>
-                <p style={{ color:'rgba(255,255,255,0.5)', margin:'0 0 4px', fontSize:12 }}>Games Played</p>
-                <p style={{ color:'white', margin:0, fontSize:28, fontWeight:'bold' }}>{stats.gamesPlayed}</p>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-                {[['Wins','#16a34a',stats.wins],['Losses','#dc2626',stats.losses],['Draws','#ca8a04',stats.draws]].map(([l,c,v]) => (
-                  <div key={l} style={{ background:`${c}22`, border:`1px solid ${c}`, borderRadius:10, padding:10, textAlign:'center' }}>
-                    <p style={{ color:c, margin:'0 0 4px', fontSize:11 }}>{l}</p>
-                    <p style={{ color:'white', margin:0, fontSize:22, fontWeight:'bold' }}>{v}</p>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:10, padding:14 }}>
-                <p style={{ color:'rgba(255,255,255,0.5)', margin:'0 0 4px', fontSize:12 }}>Win Streak</p>
-                <p style={{ color:'#f59e0b', margin:0, fontSize:28, fontWeight:'bold' }}>🔥 {stats.winStreak}</p>
-              </div>
-            </div>
-            <button onClick={() => setShowStats(false)} style={{ width:'100%', marginTop:16, background:'#3b82f6', color:'white', border:'none', borderRadius:10, padding:12, fontSize:15, fontWeight:'bold', cursor:'pointer' }}>Close</button>
+      <footer className="bg-slate-800 border-t border-slate-700 py-2 md:py-4 mt-4 md:mt-8">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-2 text-slate-400 text-xs md:text-sm">
+            <span>from Musfirah</span>
+            <span className="text-sm md:text-lg" style={{ color: '#87CEEB' }}>🦋</span>
           </div>
         </div>
-      )}
-
-      <footer style={{ background:'rgba(0,0,0,0.3)', padding:'10px', textAlign:'center', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
-        <span style={{ color:'rgba(255,255,255,0.3)', fontSize:12 }}>from Musfirah </span>
-        <span style={{ color:'#87CEEB' }}>🦋</span>
       </footer>
     </div>
   );
