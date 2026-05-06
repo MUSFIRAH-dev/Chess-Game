@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Crown, RotateCcw, User, Cpu, Undo, Clock, Trophy, TrendingUp } from 'lucide-react';
+import { Crown, RotateCcw, User, Cpu, Undo, Clock, Trophy, TrendingUp, ArrowLeft } from 'lucide-react';
 
 // Pink Heart Icon
 const HeartIcon = ({ size = 18, glow = false }) => (
@@ -24,7 +24,7 @@ const ChessGame = () => {
   const [isDraw, setIsDraw] = useState(false);
   const [theme, setTheme] = useState('classic');
 
-  // Settings panel
+  // Settings — full screen
   const [showSettings, setShowSettings] = useState(false);
 
   const [moveHistory, setMoveHistory] = useState([]);
@@ -46,8 +46,6 @@ const ChessGame = () => {
   });
   const [showStats, setShowStats] = useState(false);
 
-  const settingsRef = useRef(null);
-
   const themes = {
     classic: { name: 'Classic Wood', light: 'bg-[#f0d9b5]', dark: 'bg-[#b58863]', icon: '🪵', gradient: 'linear-gradient(135deg, #f0d9b5, #b58863)' },
     ocean:   { name: 'Ocean Blue',   light: 'bg-[#e8f4f8]', dark: 'bg-[#4a90a4]', icon: '🌊', gradient: 'linear-gradient(135deg, #e8f4f8, #4a90a4)' },
@@ -56,17 +54,6 @@ const ChessGame = () => {
     dark:    { name: 'Dark Mode',    light: 'bg-[#4a5568]', dark: 'bg-[#1a202c]',  icon: '🌙', gradient: 'linear-gradient(135deg, #4a5568, #1a202c)' },
     neon:    { name: 'Neon Cyber',   light: 'bg-[#1a1a2e]', dark: 'bg-[#0f3460]',  icon: '🌃', gradient: 'linear-gradient(135deg, #1a1a2e, #0f3460)' },
   };
-
-  // Close settings on outside click
-  useEffect(() => {
-    const handler = (e) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
-        setShowSettings(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   // Haptic Feedback only
   const vibrate = (pattern) => {
@@ -485,6 +472,169 @@ const ChessGame = () => {
 
   const isValidMoveSquare = (row, col) => validMoves.some(([r, c]) => r === row && c === col);
 
+  // ── SETTINGS FULL SCREEN ──────────────────────────────────────────────────────
+  if (showSettings) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+        {/* Header */}
+        <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => setShowSettings(false)}
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 transition-all active:scale-95"
+          >
+            <ArrowLeft size={18} className="text-white" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#f472b6' }}><HeartIcon size={18} glow /></span>
+            <h1 className="text-white font-bold text-lg">Customize</h1>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-6 max-w-lg mx-auto w-full">
+
+          {/* THEME */}
+          <div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">🎨 Theme</p>
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(themes).map(([key, t]) => (
+                <button
+                  key={key}
+                  onClick={() => setTheme(key)}
+                  style={{
+                    background: theme === key ? t.gradient : 'rgba(255,255,255,0.04)',
+                    border: theme === key ? '2px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    boxShadow: theme === key ? '0 4px 20px rgba(0,0,0,0.4)' : 'none',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{t.icon}</span>
+                    <div>
+                      <p style={{
+                        color: theme === key ? 'white' : '#94a3b8',
+                        fontSize: 13,
+                        fontWeight: theme === key ? 'bold' : 'normal',
+                        margin: 0,
+                      }}>{t.name}</p>
+                      {theme === key && <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: 0 }}>Active ✓</p>}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* DIFFICULTY (AI only) */}
+          {gameMode === 'ai' && (
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">🎯 AI Difficulty</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  ['easy',   '😊', 'Easy',   '#16a34a', 'Beginner friendly'],
+                  ['medium', '🧐', 'Medium', '#ca8a04', 'Balanced challenge'],
+                  ['hard',   '😈', 'Hard',   '#dc2626', 'Expert level'],
+                ].map(([d, emoji, label, color, desc]) => (
+                  <button key={d} onClick={() => setAiDifficulty(d)}
+                    style={{
+                      background: aiDifficulty === d ? `${color}33` : 'rgba(255,255,255,0.04)',
+                      border: aiDifficulty === d ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 14, padding: '14px 8px',
+                      cursor: 'pointer', textAlign: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <p style={{ fontSize: 24, margin: '0 0 4px' }}>{emoji}</p>
+                    <p style={{ color: aiDifficulty === d ? color : '#94a3b8', fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{label}</p>
+                    <p style={{ color: '#64748b', fontSize: 10, margin: 0 }}>{desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TIMER */}
+          <div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">⏱️ Timer Per Player</p>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <button
+                onClick={() => { setTimerEnabled(false); setTimerRunning(false); setShowCustomInput(false); }}
+                style={{
+                  background: !timerEnabled ? 'rgba(100,116,139,0.3)' : 'rgba(255,255,255,0.04)',
+                  border: !timerEnabled ? '2px solid #64748b' : '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 14, padding: '14px 8px',
+                  cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
+                }}
+              >
+                <p style={{ fontSize: 22, margin: '0 0 4px' }}>🚫</p>
+                <p style={{ color: !timerEnabled ? 'white' : '#64748b', fontSize: 13, fontWeight: 'bold', margin: 0 }}>Off</p>
+              </button>
+              {[1, 3, 5, 10].map(min => (
+                <button key={min}
+                  onClick={() => { applyTimerPreset(min); setTimerEnabled(true); setShowCustomInput(false); }}
+                  style={{
+                    background: timerEnabled && timerPreset === min && !showCustomInput ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.04)',
+                    border: timerEnabled && timerPreset === min && !showCustomInput ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 14, padding: '14px 8px',
+                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
+                  }}
+                >
+                  <p style={{ fontSize: 22, margin: '0 0 4px' }}>⏱️</p>
+                  <p style={{ color: timerEnabled && timerPreset === min && !showCustomInput ? '#93c5fd' : '#64748b', fontSize: 13, fontWeight: 'bold', margin: 0 }}>{min} min</p>
+                </button>
+              ))}
+              <button
+                onClick={() => setShowCustomInput(s => !s)}
+                style={{
+                  background: showCustomInput ? 'rgba(244,114,182,0.2)' : 'rgba(255,255,255,0.04)',
+                  border: showCustomInput ? '2px solid #f472b6' : '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 14, padding: '14px 8px',
+                  cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
+                }}
+              >
+                <p style={{ fontSize: 22, margin: '0 0 4px' }}>✏️</p>
+                <p style={{ color: showCustomInput ? '#f472b6' : '#64748b', fontSize: 13, fontWeight: 'bold', margin: 0 }}>Custom</p>
+              </button>
+            </div>
+
+            {showCustomInput && (
+              <div className="bg-slate-800 rounded-xl p-4 flex items-center gap-3">
+                <span className="text-slate-400 text-sm">Minutes:</span>
+                <input
+                  type="number" min={1} max={180} value={customMinutes}
+                  onChange={e => setCustomMinutes(Number(e.target.value))}
+                  className="w-20 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm text-center font-bold"
+                />
+                <button
+                  onClick={() => { applyTimerPreset(customMinutes); setTimerEnabled(true); setShowCustomInput(false); }}
+                  style={{ background: '#f472b6', border: 'none', borderRadius: 10, padding: '8px 20px', color: 'white', fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Set ✓
+                </button>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Back Button at Bottom */}
+        <div className="p-4 border-t border-slate-700">
+          <button
+            onClick={() => setShowSettings(false)}
+            className="w-full py-3 rounded-xl font-bold text-white text-base transition-all active:scale-95"
+            style={{ background: 'linear-gradient(135deg, rgba(244,114,182,0.8), rgba(168,85,247,0.8))', border: '1px solid rgba(244,114,182,0.4)' }}
+          >
+            ← Back to Game
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── HOME SCREEN ───────────────────────────────────────────────────────────────
   if (!gameMode) {
     return (
@@ -594,153 +744,22 @@ const ChessGame = () => {
         </div>
 
         {/* Right: Pink Heart Button */}
-        <div className="relative" ref={settingsRef}>
-          <button
-            onClick={() => setShowSettings(s => !s)}
-            style={{
-              width: 38, height: 38, borderRadius: '50%',
-              background: showSettings ? 'rgba(244,114,182,0.25)' : 'rgba(244,114,182,0.1)',
-              border: `1px solid ${showSettings ? '#f472b6' : 'rgba(244,114,182,0.4)'}`,
-              color: '#f472b6',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'all 0.2s',
-              boxShadow: showSettings ? '0 0 16px rgba(244,114,182,0.7)' : '0 0 6px rgba(244,114,182,0.3)',
-            }}
-          >
-            <HeartIcon size={17} glow={showSettings} />
-          </button>
-
-          {/* Settings Full Panel */}
-          {showSettings && (
-            <div
-              className="absolute right-0 top-12 rounded-2xl shadow-2xl z-50 overflow-y-auto"
-              style={{
-                width: 300,
-                maxHeight: '80vh',
-                background: '#0f172a',
-                border: '1px solid rgba(244,114,182,0.25)',
-                boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
-              }}
-            >
-              {/* Header */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800">
-                <span style={{ color: '#f472b6' }}><HeartIcon size={15} glow /></span>
-                <span className="text-white font-bold text-sm">Customize</span>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="ml-auto text-slate-500 hover:text-white text-lg leading-none"
-                >✕</button>
-              </div>
-
-              <div className="p-4 space-y-5">
-
-                {/* THEME */}
-                <div>
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-3">Theme</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(themes).map(([key, t]) => (
-                      <button
-                        key={key}
-                        onClick={() => setTheme(key)}
-                        style={{
-                          background: theme === key ? t.gradient : 'rgba(255,255,255,0.04)',
-                          border: theme === key ? '2px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 10, padding: '10px 12px',
-                          cursor: 'pointer', textAlign: 'left',
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{t.icon}</span>
-                          <span style={{
-                            color: theme === key ? 'white' : '#94a3b8',
-                            fontSize: 12, fontWeight: theme === key ? 'bold' : 'normal'
-                          }}>{t.name}</span>
-                          {theme === key && <span className="ml-auto text-white text-xs">✓</span>}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* DIFFICULTY (AI only) */}
-                {gameMode === 'ai' && (
-                  <div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-3">Difficulty</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[['easy','😊 Easy','#16a34a'],['medium','🧐 Medium','#ca8a04'],['hard','😈 Hard','#dc2626']].map(([d,label,color]) => (
-                        <button key={d} onClick={() => setAiDifficulty(d)}
-                          style={{
-                            background: aiDifficulty === d ? color : 'rgba(255,255,255,0.05)',
-                            border: aiDifficulty === d ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 8, padding: '8px 4px',
-                            color: aiDifficulty === d ? 'white' : '#64748b',
-                            fontSize: 11, fontWeight: 'bold', cursor: 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                        >{label}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* TIMER */}
-                <div>
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-3">Timer Per Player</p>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    <button
-                      onClick={() => { setTimerEnabled(false); setTimerRunning(false); setShowCustomInput(false); }}
-                      style={{
-                        background: !timerEnabled ? 'rgba(100,116,139,0.5)' : 'rgba(255,255,255,0.05)',
-                        border: !timerEnabled ? '1px solid #64748b' : '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 8, padding: '6px 12px',
-                        color: !timerEnabled ? 'white' : '#64748b',
-                        fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                      }}
-                    >Off</button>
-                    {[1, 3, 5, 10].map(min => (
-                      <button key={min}
-                        onClick={() => { applyTimerPreset(min); setTimerEnabled(true); setShowCustomInput(false); }}
-                        style={{
-                          background: timerEnabled && timerPreset === min && !showCustomInput ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-                          border: timerEnabled && timerPreset === min && !showCustomInput ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 8, padding: '6px 12px',
-                          color: timerEnabled && timerPreset === min && !showCustomInput ? 'white' : '#64748b',
-                          fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                        }}
-                      >{min} min</button>
-                    ))}
-                    <button
-                      onClick={() => setShowCustomInput(s => !s)}
-                      style={{
-                        background: showCustomInput ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-                        border: showCustomInput ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 8, padding: '6px 12px',
-                        color: showCustomInput ? 'white' : '#64748b',
-                        fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                      }}
-                    >Custom</button>
-                  </div>
-                  {showCustomInput && (
-                    <div className="flex gap-2 items-center mt-2">
-                      <input
-                        type="number" min={1} max={180} value={customMinutes}
-                        onChange={e => setCustomMinutes(Number(e.target.value))}
-                        className="w-16 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-center"
-                      />
-                      <span className="text-slate-400 text-xs">min</span>
-                      <button
-                        onClick={() => { applyTimerPreset(customMinutes); setTimerEnabled(true); setShowCustomInput(false); }}
-                        style={{ background: '#f472b6', border: 'none', borderRadius: 8, padding: '6px 14px', color: 'white', fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}
-                      >Set ✓</button>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={() => setShowSettings(true)}
+          style={{
+            width: 38, height: 38, borderRadius: '50%',
+            background: 'rgba(244,114,182,0.1)',
+            border: '1px solid rgba(244,114,182,0.4)',
+            color: '#f472b6',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', transition: 'all 0.2s',
+            boxShadow: '0 0 10px rgba(244,114,182,0.4)',
+          }}
+          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 18px rgba(244,114,182,0.8)'}
+          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 0 10px rgba(244,114,182,0.4)'}
+        >
+          <HeartIcon size={17} glow />
+        </button>
       </div>
 
       {/* Timer Bar */}
