@@ -9,6 +9,63 @@ const HeartIcon = ({ size = 18, glow = false }) => (
   </svg>
 );
 
+// ── PIECE SQUARE TABLES FOR SMARTER AI ───────────────────────────────────────
+const PIECE_VALUES = { pawn: 100, knight: 320, bishop: 330, rook: 500, queen: 900, king: 20000 };
+
+const PAWN_TABLE = [
+  [0,0,0,0,0,0,0,0],[50,50,50,50,50,50,50,50],[10,10,20,30,30,20,10,10],
+  [5,5,10,25,25,10,5,5],[0,0,0,20,20,0,0,0],[5,-5,-10,0,0,-10,-5,5],
+  [5,10,10,-20,-20,10,10,5],[0,0,0,0,0,0,0,0]
+];
+const KNIGHT_TABLE = [
+  [-50,-40,-30,-30,-30,-30,-40,-50],[-40,-20,0,0,0,0,-20,-40],
+  [-30,0,10,15,15,10,0,-30],[-30,5,15,20,20,15,5,-30],
+  [-30,0,15,20,20,15,0,-30],[-30,5,10,15,15,10,5,-30],
+  [-40,-20,0,5,5,0,-20,-40],[-50,-40,-30,-30,-30,-30,-40,-50]
+];
+const BISHOP_TABLE = [
+  [-20,-10,-10,-10,-10,-10,-10,-20],[-10,0,0,0,0,0,0,-10],
+  [-10,0,5,10,10,5,0,-10],[-10,5,5,10,10,5,5,-10],
+  [-10,0,10,10,10,10,0,-10],[-10,10,10,10,10,10,10,-10],
+  [-10,5,0,0,0,0,5,-10],[-20,-10,-10,-10,-10,-10,-10,-20]
+];
+const ROOK_TABLE = [
+  [0,0,0,0,0,0,0,0],[5,10,10,10,10,10,10,5],
+  [-5,0,0,0,0,0,0,-5],[-5,0,0,0,0,0,0,-5],
+  [-5,0,0,0,0,0,0,-5],[-5,0,0,0,0,0,0,-5],
+  [-5,0,0,0,0,0,0,-5],[0,0,0,5,5,0,0,0]
+];
+const QUEEN_TABLE = [
+  [-20,-10,-10,-5,-5,-10,-10,-20],[-10,0,0,0,0,0,0,-10],
+  [-10,0,5,5,5,5,0,-10],[-5,0,5,5,5,5,0,-5],
+  [0,0,5,5,5,5,0,-5],[-10,5,5,5,5,5,0,-10],
+  [-10,0,5,0,0,0,0,-10],[-20,-10,-10,-5,-5,-10,-10,-20]
+];
+
+const getPST = (piece, row, col) => {
+  const r = piece.color === 'white' ? row : 7 - row;
+  switch(piece.type) {
+    case 'pawn':   return PAWN_TABLE[r][col];
+    case 'knight': return KNIGHT_TABLE[r][col];
+    case 'bishop': return BISHOP_TABLE[r][col];
+    case 'rook':   return ROOK_TABLE[r][col];
+    case 'queen':  return QUEEN_TABLE[r][col];
+    default: return 0;
+  }
+};
+
+const evaluateBoard = (board) => {
+  let score = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const val = PIECE_VALUES[p.type] + getPST(p, r, c);
+      score += p.color === 'black' ? val : -val;
+    }
+  return score;
+};
+
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
   const [selectedSquare, setSelectedSquare] = useState(null);
@@ -23,16 +80,11 @@ const ChessGame = () => {
   const [isCheck, setIsCheck] = useState(false);
   const [isDraw, setIsDraw] = useState(false);
   const [theme, setTheme] = useState('classic');
-
-  // Settings — full screen
   const [showSettings, setShowSettings] = useState(false);
-
   const [moveHistory, setMoveHistory] = useState([]);
   const [boardHistory, setBoardHistory] = useState([]);
   const [aiDifficulty, setAiDifficulty] = useState('medium');
   const [showMoveHistory, setShowMoveHistory] = useState(false);
-
-  // Timer
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
   const [timerEnabled, setTimerEnabled] = useState(false);
@@ -40,10 +92,7 @@ const ChessGame = () => {
   const [timerPreset, setTimerPreset] = useState(10);
   const [customMinutes, setCustomMinutes] = useState(10);
   const [showCustomInput, setShowCustomInput] = useState(false);
-
-  const [stats, setStats] = useState({
-    gamesPlayed: 0, wins: 0, losses: 0, draws: 0, winStreak: 0
-  });
+  const [stats, setStats] = useState({ gamesPlayed: 0, wins: 0, losses: 0, draws: 0, winStreak: 0 });
   const [showStats, setShowStats] = useState(false);
 
   const themes = {
@@ -55,12 +104,8 @@ const ChessGame = () => {
     neon:    { name: 'Neon Cyber',   light: 'bg-[#1a1a2e]', dark: 'bg-[#0f3460]',  icon: '🌃', gradient: 'linear-gradient(135deg, #1a1a2e, #0f3460)' },
   };
 
-  // Haptic Feedback only
-  const vibrate = (pattern) => {
-    if (navigator.vibrate) navigator.vibrate(pattern);
-  };
+  const vibrate = (pattern) => { if (navigator.vibrate) navigator.vibrate(pattern); };
 
-  // Timer Effect
   useEffect(() => {
     if (!timerEnabled || !timerRunning || gameOver) return;
     const interval = setInterval(() => {
@@ -79,34 +124,26 @@ const ChessGame = () => {
     return () => clearInterval(interval);
   }, [timerEnabled, timerRunning, currentPlayer, gameOver]);
 
-  // Load stats
   useEffect(() => {
     const savedStats = localStorage.getItem('chessStats');
     if (savedStats) setStats(JSON.parse(savedStats));
   }, []);
 
-  // Save game state
   useEffect(() => {
     if (gameMode && board.length > 0) {
-      localStorage.setItem('chessGame', JSON.stringify({
-        board, currentPlayer, gameMode, capturedPieces, moveHistory, aiDifficulty, theme
-      }));
+      localStorage.setItem('chessGame', JSON.stringify({ board, currentPlayer, gameMode, capturedPieces, moveHistory, aiDifficulty, theme }));
     }
   }, [board, currentPlayer, gameMode, capturedPieces, moveHistory, aiDifficulty, theme]);
 
-  // Save stats
-  useEffect(() => {
-    localStorage.setItem('chessStats', JSON.stringify(stats));
-  }, [stats]);
+  useEffect(() => { localStorage.setItem('chessStats', JSON.stringify(stats)); }, [stats]);
 
   const updateStats = (winningPlayer) => {
     setStats(prev => {
-      const newStats = { ...prev };
-      newStats.gamesPlayed += 1;
-      if (isDraw) { newStats.draws += 1; newStats.winStreak = 0; }
-      else if (winningPlayer === 'white' && gameMode === 'ai') { newStats.wins += 1; newStats.winStreak += 1; }
-      else if (winningPlayer === 'black' && gameMode === 'ai') { newStats.losses += 1; newStats.winStreak = 0; }
-      return newStats;
+      const s = { ...prev, gamesPlayed: prev.gamesPlayed + 1 };
+      if (isDraw) { s.draws += 1; s.winStreak = 0; }
+      else if (winningPlayer === 'white' && gameMode === 'ai') { s.wins += 1; s.winStreak += 1; }
+      else if (winningPlayer === 'black' && gameMode === 'ai') { s.losses += 1; s.winStreak = 0; }
+      return s;
     });
   };
 
@@ -117,10 +154,7 @@ const ChessGame = () => {
   };
 
   const applyTimerPreset = (minutes) => {
-    setTimerPreset(minutes);
-    setWhiteTime(minutes * 60);
-    setBlackTime(minutes * 60);
-    setTimerRunning(false);
+    setTimerPreset(minutes); setWhiteTime(minutes * 60); setBlackTime(minutes * 60); setTimerRunning(false);
   };
 
   useEffect(() => { if (gameMode) initializeBoard(); }, [gameMode]);
@@ -128,9 +162,8 @@ const ChessGame = () => {
   useEffect(() => {
     if (gameMode === 'ai' && currentPlayer === 'black' && !gameOver && !promotionSquare) {
       setIsThinking(true);
-      const timeout = setTimeout(() => {
-        makeAIMove();
-      }, aiDifficulty === 'easy' ? 300 : aiDifficulty === 'medium' ? 500 : 800);
+      const delay = aiDifficulty === 'easy' ? 300 : aiDifficulty === 'medium' ? 600 : 1000;
+      const timeout = setTimeout(() => makeAIMove(), delay);
       return () => clearTimeout(timeout);
     }
   }, [currentPlayer, gameMode, gameOver, promotionSquare]);
@@ -142,26 +175,17 @@ const ChessGame = () => {
       newBoard[6][i] = { type: 'pawn', color: 'white' };
     }
     const setupRow = (row, color) => {
-      newBoard[row][0] = { type: 'rook', color };
-      newBoard[row][1] = { type: 'knight', color };
-      newBoard[row][2] = { type: 'bishop', color };
-      newBoard[row][3] = { type: 'queen', color };
-      newBoard[row][4] = { type: 'king', color };
-      newBoard[row][5] = { type: 'bishop', color };
-      newBoard[row][6] = { type: 'knight', color };
-      newBoard[row][7] = { type: 'rook', color };
+      newBoard[row][0] = { type: 'rook', color }; newBoard[row][1] = { type: 'knight', color };
+      newBoard[row][2] = { type: 'bishop', color }; newBoard[row][3] = { type: 'queen', color };
+      newBoard[row][4] = { type: 'king', color }; newBoard[row][5] = { type: 'bishop', color };
+      newBoard[row][6] = { type: 'knight', color }; newBoard[row][7] = { type: 'rook', color };
     };
-    setupRow(0, 'black');
-    setupRow(7, 'white');
-    setBoard(newBoard);
-    setBoardHistory([JSON.parse(JSON.stringify(newBoard))]);
-    setCurrentPlayer('white');
-    setGameOver(false); setWinner(null); setSelectedSquare(null);
-    setValidMoves([]); setCapturedPieces({ white: [], black: [] });
-    setIsThinking(false); setPromotionSquare(null);
-    setIsCheck(false); setIsDraw(false); setMoveHistory([]);
-    setWhiteTime(timerPreset * 60); setBlackTime(timerPreset * 60);
-    setTimerRunning(false);
+    setupRow(0, 'black'); setupRow(7, 'white');
+    setBoard(newBoard); setBoardHistory([JSON.parse(JSON.stringify(newBoard))]);
+    setCurrentPlayer('white'); setGameOver(false); setWinner(null); setSelectedSquare(null);
+    setValidMoves([]); setCapturedPieces({ white: [], black: [] }); setIsThinking(false);
+    setPromotionSquare(null); setIsCheck(false); setIsDraw(false); setMoveHistory([]);
+    setWhiteTime(timerPreset * 60); setBlackTime(timerPreset * 60); setTimerRunning(false);
   };
 
   const getPieceSymbol = (piece) => {
@@ -169,59 +193,40 @@ const ChessGame = () => {
     return { king:'♔', queen:'♕', rook:'♖', bishop:'♗', knight:'♘', pawn:'♙' }[piece.type];
   };
 
-  const getPieceValue = (type) => ({ pawn:1, knight:3, bishop:3, rook:5, queen:9, king:100 }[type] || 0);
-
-  const getSquareName = (row, col) => {
-    const files = ['a','b','c','d','e','f','g','h'];
-    const ranks = ['8','7','6','5','4','3','2','1'];
-    return files[col] + ranks[row];
-  };
+  const getSquareName = (row, col) => 'abcdefgh'[col] + (8 - row);
 
   const addMoveToHistory = (fromRow, fromCol, toRow, toCol, piece, captured) => {
-    const from = getSquareName(fromRow, fromCol);
-    const to = getSquareName(toRow, toCol);
-    const moveNotation = `${getPieceSymbol(piece)} ${from} ${captured ? 'x' : '→'} ${to}`;
+    const moveNotation = `${getPieceSymbol(piece)} ${getSquareName(fromRow, fromCol)} ${captured ? 'x' : '→'} ${getSquareName(toRow, toCol)}`;
     setMoveHistory(prev => [...prev, { notation: moveNotation, player: currentPlayer }]);
   };
 
   const undoMove = () => {
     if (boardHistory.length <= 1 || gameOver) return;
     vibrate(30);
-    const newHistory = [...boardHistory];
-    newHistory.pop();
+    const newHistory = [...boardHistory]; newHistory.pop();
     const previousBoard = newHistory[newHistory.length - 1];
-    setBoardHistory(newHistory);
-    setBoard(JSON.parse(JSON.stringify(previousBoard)));
+    setBoardHistory(newHistory); setBoard(JSON.parse(JSON.stringify(previousBoard)));
     setMoveHistory(prev => prev.slice(0, -1));
     setCurrentPlayer(prev => prev === 'white' ? 'black' : 'white');
     setSelectedSquare(null); setValidMoves([]); setIsCheck(false);
   };
 
   const checkPromotion = (row, piece) => {
-    if (piece.type === 'pawn') {
-      if ((piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7)) return true;
-    }
-    return false;
+    if (piece.type !== 'pawn') return false;
+    return (piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7);
   };
 
   const promotePawn = (row, col, pieceType) => {
     const newBoard = board.map(r => [...r]);
     newBoard[row][col] = { type: pieceType, color: newBoard[row][col].color };
-    setBoard(newBoard);
-    setPromotionSquare(null);
-    vibrate(50);
+    setBoard(newBoard); setPromotionSquare(null); vibrate(50);
     const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
     if (isKingInCheck(newBoard, nextPlayer)) {
       setIsCheck(true);
-      if (isCheckmate(newBoard, nextPlayer)) {
-        setGameOver(true); setWinner(currentPlayer); updateStats(currentPlayer);
-        vibrate([100,50,100,50,100]); return;
-      }
+      if (isCheckmate(newBoard, nextPlayer)) { setGameOver(true); setWinner(currentPlayer); updateStats(currentPlayer); vibrate([100,50,100,50,100]); return; }
     } else {
       setIsCheck(false);
-      if (isStalemate(newBoard, nextPlayer)) {
-        setGameOver(true); setIsDraw(true); updateStats(null); return;
-      }
+      if (isStalemate(newBoard, nextPlayer)) { setGameOver(true); setIsDraw(true); updateStats(null); return; }
     }
     setCurrentPlayer(nextPlayer);
     if (timerEnabled) setTimerRunning(true);
@@ -248,14 +253,12 @@ const ChessGame = () => {
   const isKingInCheck = (testBoard, color) => {
     const kingPos = findKing(testBoard, color);
     if (!kingPos) return false;
-    const [kingRow, kingCol] = kingPos;
-    return isSquareAttacked(testBoard, kingRow, kingCol, color === 'white' ? 'black' : 'white');
+    return isSquareAttacked(testBoard, kingPos[0], kingPos[1], color === 'white' ? 'black' : 'white');
   };
 
   const wouldMoveCauseCheck = (fromRow, fromCol, toRow, toCol, testBoard, playerColor) => {
     const newBoard = testBoard.map(row => [...row]);
-    newBoard[toRow][toCol] = newBoard[fromRow][fromCol];
-    newBoard[fromRow][fromCol] = null;
+    newBoard[toRow][toCol] = newBoard[fromRow][fromCol]; newBoard[fromRow][fromCol] = null;
     return isKingInCheck(newBoard, playerColor);
   };
 
@@ -263,10 +266,8 @@ const ChessGame = () => {
     if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
     const targetPiece = testBoard[toRow][toCol];
     if (targetPiece && targetPiece.color === piece.color) return false;
-    const rowDiff = toRow - fromRow;
-    const colDiff = toCol - fromCol;
-    const absRowDiff = Math.abs(rowDiff);
-    const absColDiff = Math.abs(colDiff);
+    const rowDiff = toRow - fromRow, colDiff = toCol - fromCol;
+    const absRowDiff = Math.abs(rowDiff), absColDiff = Math.abs(colDiff);
     switch (piece.type) {
       case 'pawn':
         const direction = piece.color === 'white' ? -1 : 1;
@@ -288,8 +289,7 @@ const ChessGame = () => {
       case 'queen':
         if (rowDiff !== 0 && colDiff !== 0 && absRowDiff !== absColDiff) return false;
         return isPathClear(fromRow, fromCol, toRow, toCol, testBoard);
-      case 'king':
-        return absRowDiff <= 1 && absColDiff <= 1;
+      case 'king': return absRowDiff <= 1 && absColDiff <= 1;
       default: return false;
     }
   };
@@ -302,8 +302,7 @@ const ChessGame = () => {
   const isPathClear = (fromRow, fromCol, toRow, toCol, testBoard) => {
     const rowStep = toRow > fromRow ? 1 : toRow < fromRow ? -1 : 0;
     const colStep = toCol > fromCol ? 1 : toCol < fromCol ? -1 : 0;
-    let currentRow = fromRow + rowStep;
-    let currentCol = fromCol + colStep;
+    let currentRow = fromRow + rowStep, currentCol = fromCol + colStep;
     while (currentRow !== toRow || currentCol !== toCol) {
       if (testBoard[currentRow][currentCol]) return false;
       currentRow += rowStep; currentCol += colStep;
@@ -312,8 +311,7 @@ const ChessGame = () => {
   };
 
   const getValidMovesForPiece = (row, col, testBoard = board) => {
-    const moves = [];
-    const piece = testBoard[row][col];
+    const moves = [], piece = testBoard[row][col];
     if (!piece) return moves;
     for (let r = 0; r < 8; r++)
       for (let c = 0; c < 8; c++)
@@ -338,33 +336,51 @@ const ChessGame = () => {
     for (let r = 0; r < 8; r++)
       for (let c = 0; c < 8; c++) {
         const piece = testBoard[r][c];
-        if (piece && piece.color === color) {
-          getValidMovesForPiece(r, c, testBoard).forEach(([toR, toC]) => {
-            allMoves.push({ from: [r, c], to: [toR, toC], piece });
-          });
-        }
+        if (piece && piece.color === color)
+          getValidMovesForPiece(r, c, testBoard).forEach(([toR, toC]) =>
+            allMoves.push({ from: [r, c], to: [toR, toC], piece })
+          );
       }
     return allMoves;
   };
 
-  const evaluateMove = (move, testBoard) => {
-    const { from, to } = move;
-    const [fromR, fromC] = from;
-    const [toR, toC] = to;
-    let score = 0;
-    const targetPiece = testBoard[toR][toC];
-    if (targetPiece) score += getPieceValue(targetPiece.type) * 10;
-    const centerDistance = Math.abs(toR - 3.5) + Math.abs(toC - 3.5);
-    score += (7 - centerDistance) * 0.5;
-    if (move.piece.type === 'pawn') score += (7 - toR) * 0.3;
-    const testBoardAfterMove = testBoard.map(r => [...r]);
-    testBoardAfterMove[toR][toC] = testBoardAfterMove[fromR][fromC];
-    testBoardAfterMove[fromR][fromC] = null;
-    if (isKingInCheck(testBoardAfterMove, 'white')) score += 5;
-    if (aiDifficulty === 'easy') score = Math.random() * 100;
-    else if (aiDifficulty === 'medium') score += Math.random() * 5;
-    else score += Math.random() * 2;
-    return score;
+  // ── IMPROVED AI with Minimax + Alpha-Beta ─────────────────────────────────────
+  const applyMoveToBoard = (testBoard, from, to) => {
+    const nb = testBoard.map(r => [...r]);
+    nb[to[0]][to[1]] = nb[from[0]][from[1]];
+    nb[from[0]][from[1]] = null;
+    // Auto promote to queen
+    const p = nb[to[0]][to[1]];
+    if (p?.type === 'pawn' && ((p.color === 'white' && to[0] === 0) || (p.color === 'black' && to[0] === 7))) {
+      nb[to[0]][to[1]] = { type: 'queen', color: p.color };
+    }
+    return nb;
+  };
+
+  const minimax = (testBoard, depth, alpha, beta, maximizing) => {
+    if (depth === 0) return evaluateBoard(testBoard);
+    const color = maximizing ? 'black' : 'white';
+    const moves = getAllPossibleMoves(color, testBoard);
+    if (moves.length === 0) return maximizing ? -99999 : 99999;
+    if (maximizing) {
+      let best = -Infinity;
+      for (const m of moves) {
+        const nb = applyMoveToBoard(testBoard, m.from, m.to);
+        best = Math.max(best, minimax(nb, depth - 1, alpha, beta, false));
+        alpha = Math.max(alpha, best);
+        if (beta <= alpha) break;
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (const m of moves) {
+        const nb = applyMoveToBoard(testBoard, m.from, m.to);
+        best = Math.min(best, minimax(nb, depth - 1, alpha, beta, true));
+        beta = Math.min(beta, best);
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
   };
 
   const makeAIMove = () => {
@@ -372,33 +388,58 @@ const ChessGame = () => {
     if (possibleMoves.length === 0) {
       setGameOver(true); setWinner('white'); updateStats('white'); setIsThinking(false); return;
     }
+
     let bestMove = possibleMoves[0];
-    let bestScore = -Infinity;
-    possibleMoves.forEach(move => {
-      const score = evaluateMove(move, board);
-      if (score > bestScore) { bestScore = score; bestMove = move; }
-    });
+
+    if (aiDifficulty === 'easy') {
+      // Easy: random moves, occasionally captures
+      const captures = possibleMoves.filter(m => board[m.to[0]][m.to[1]]);
+      bestMove = captures.length && Math.random() > 0.6
+        ? captures[Math.floor(Math.random() * captures.length)]
+        : possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+
+    } else if (aiDifficulty === 'medium') {
+      // Medium: depth 2 minimax + small randomness
+      let bestScore = -Infinity;
+      for (const m of possibleMoves) {
+        const nb = applyMoveToBoard(board, m.from, m.to);
+        const score = minimax(nb, 1, -Infinity, Infinity, false) + Math.random() * 50;
+        if (score > bestScore) { bestScore = score; bestMove = m; }
+      }
+
+    } else {
+      // Hard: depth 3 minimax with alpha-beta, almost no randomness
+      let bestScore = -Infinity;
+      for (const m of possibleMoves) {
+        const nb = applyMoveToBoard(board, m.from, m.to);
+        const score = minimax(nb, 2, -Infinity, Infinity, false) + Math.random() * 5;
+        if (score > bestScore) { bestScore = score; bestMove = m; }
+      }
+    }
+
     const { from, to } = bestMove;
     const [fromR, fromC] = from;
     const [toR, toC] = to;
     const newBoard = board.map(row => [...row]);
     const movingPiece = newBoard[fromR][fromC];
     const capturedPiece = newBoard[toR][toC];
+
     if (capturedPiece) {
       const newCaptured = { ...capturedPieces };
       newCaptured.black.push(capturedPiece);
       setCapturedPieces(newCaptured);
       vibrate(50);
     } else { vibrate(30); }
+
     addMoveToHistory(fromR, fromC, toR, toC, movingPiece, capturedPiece);
-    newBoard[toR][toC] = movingPiece;
-    newBoard[fromR][fromC] = null;
+    newBoard[toR][toC] = movingPiece; newBoard[fromR][fromC] = null;
     if (checkPromotion(toR, movingPiece)) newBoard[toR][toC] = { type: 'queen', color: 'black' };
+
     setBoard(newBoard);
     setBoardHistory(prev => [...prev, JSON.parse(JSON.stringify(newBoard))]);
+
     if (isKingInCheck(newBoard, 'white')) {
-      setIsCheck(true);
-      vibrate([50,30,50]);
+      setIsCheck(true); vibrate([50,30,50]);
       if (isCheckmate(newBoard, 'white')) {
         setGameOver(true); setWinner('black'); updateStats('black'); setIsThinking(false);
         vibrate([100,50,100,50,100]); return;
@@ -425,12 +466,10 @@ const ChessGame = () => {
         if (capturedPiece) {
           const newCaptured = { ...capturedPieces };
           newCaptured[currentPlayer].push(capturedPiece);
-          setCapturedPieces(newCaptured);
-          vibrate(50);
+          setCapturedPieces(newCaptured); vibrate(50);
         } else { vibrate(30); }
         addMoveToHistory(selectedRow, selectedCol, row, col, movingPiece, capturedPiece);
-        newBoard[row][col] = movingPiece;
-        newBoard[selectedRow][selectedCol] = null;
+        newBoard[row][col] = movingPiece; newBoard[selectedRow][selectedCol] = null;
         setBoard(newBoard);
         setBoardHistory(prev => [...prev, JSON.parse(JSON.stringify(newBoard))]);
         if (checkPromotion(row, movingPiece)) {
@@ -438,12 +477,10 @@ const ChessGame = () => {
         } else {
           const nextPlayer = currentPlayer === 'white' ? 'black' : 'white';
           if (isKingInCheck(newBoard, nextPlayer)) {
-            setIsCheck(true);
-            vibrate([50,30,50]);
+            setIsCheck(true); vibrate([50,30,50]);
             if (isCheckmate(newBoard, nextPlayer)) {
               setGameOver(true); setWinner(currentPlayer); updateStats(currentPlayer);
-              setSelectedSquare(null); setValidMoves([]);
-              vibrate([100,50,100,50,100]); return;
+              setSelectedSquare(null); setValidMoves([]); vibrate([100,50,100,50,100]); return;
             }
           } else {
             setIsCheck(false);
@@ -456,17 +493,12 @@ const ChessGame = () => {
         }
         setSelectedSquare(null); setValidMoves([]);
       } else if (board[row][col]?.color === currentPlayer) {
-        vibrate(20);
-        setSelectedSquare([row, col]);
-        setValidMoves(getValidMovesForPiece(row, col));
+        vibrate(20); setSelectedSquare([row, col]); setValidMoves(getValidMovesForPiece(row, col));
       } else {
-        vibrate(10);
-        setSelectedSquare(null); setValidMoves([]);
+        vibrate(10); setSelectedSquare(null); setValidMoves([]);
       }
     } else if (board[row][col]?.color === currentPlayer) {
-      vibrate(20);
-      setSelectedSquare([row, col]);
-      setValidMoves(getValidMovesForPiece(row, col));
+      vibrate(20); setSelectedSquare([row, col]); setValidMoves(getValidMovesForPiece(row, col));
     }
   };
 
@@ -476,12 +508,8 @@ const ChessGame = () => {
   if (showSettings) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
-        {/* Header */}
         <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={() => setShowSettings(false)}
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 transition-all active:scale-95"
-          >
+          <button onClick={() => setShowSettings(false)} className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 transition-all active:scale-95">
             <ArrowLeft size={18} className="text-white" />
           </button>
           <div className="flex items-center gap-2">
@@ -490,37 +518,22 @@ const ChessGame = () => {
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-grow overflow-y-auto p-4 space-y-6 max-w-lg mx-auto w-full">
-
-          {/* THEME */}
           <div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">🎨 Theme</p>
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(themes).map(([key, t]) => (
-                <button
-                  key={key}
-                  onClick={() => setTheme(key)}
+                <button key={key} onClick={() => setTheme(key)}
                   style={{
                     background: theme === key ? t.gradient : 'rgba(255,255,255,0.04)',
                     border: theme === key ? '2px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 14,
-                    padding: '14px 16px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.2s',
-                    boxShadow: theme === key ? '0 4px 20px rgba(0,0,0,0.4)' : 'none',
-                  }}
-                >
+                    borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
+                    transition: 'all 0.2s', boxShadow: theme === key ? '0 4px 20px rgba(0,0,0,0.4)' : 'none',
+                  }}>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{t.icon}</span>
                     <div>
-                      <p style={{
-                        color: theme === key ? 'white' : '#94a3b8',
-                        fontSize: 13,
-                        fontWeight: theme === key ? 'bold' : 'normal',
-                        margin: 0,
-                      }}>{t.name}</p>
+                      <p style={{ color: theme === key ? 'white' : '#94a3b8', fontSize: 13, fontWeight: theme === key ? 'bold' : 'normal', margin: 0 }}>{t.name}</p>
                       {theme === key && <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: 0 }}>Active ✓</p>}
                     </div>
                   </div>
@@ -529,25 +542,17 @@ const ChessGame = () => {
             </div>
           </div>
 
-          {/* DIFFICULTY (AI only) */}
           {gameMode === 'ai' && (
             <div>
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">🎯 AI Difficulty</p>
               <div className="grid grid-cols-3 gap-3">
-                {[
-                  ['easy',   '😊', 'Easy',   '#16a34a', 'Beginner friendly'],
-                  ['medium', '🧐', 'Medium', '#ca8a04', 'Balanced challenge'],
-                  ['hard',   '😈', 'Hard',   '#dc2626', 'Expert level'],
-                ].map(([d, emoji, label, color, desc]) => (
+                {[['easy','😊','Easy','#16a34a','Beginner friendly'],['medium','🧐','Medium','#ca8a04','Balanced challenge'],['hard','😈','Hard','#dc2626','Expert level']].map(([d,emoji,label,color,desc]) => (
                   <button key={d} onClick={() => setAiDifficulty(d)}
                     style={{
                       background: aiDifficulty === d ? `${color}33` : 'rgba(255,255,255,0.04)',
                       border: aiDifficulty === d ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: 14, padding: '14px 8px',
-                      cursor: 'pointer', textAlign: 'center',
-                      transition: 'all 0.2s',
-                    }}
-                  >
+                      borderRadius: 14, padding: '14px 8px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
+                    }}>
                     <p style={{ fontSize: 24, margin: '0 0 4px' }}>{emoji}</p>
                     <p style={{ color: aiDifficulty === d ? color : '#94a3b8', fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{label}</p>
                     <p style={{ color: '#64748b', fontSize: 10, margin: 0 }}>{desc}</p>
@@ -557,77 +562,42 @@ const ChessGame = () => {
             </div>
           )}
 
-          {/* TIMER */}
           <div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">⏱️ Timer Per Player</p>
             <div className="grid grid-cols-3 gap-3 mb-3">
-              <button
-                onClick={() => { setTimerEnabled(false); setTimerRunning(false); setShowCustomInput(false); }}
-                style={{
-                  background: !timerEnabled ? 'rgba(100,116,139,0.3)' : 'rgba(255,255,255,0.04)',
-                  border: !timerEnabled ? '2px solid #64748b' : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 14, padding: '14px 8px',
-                  cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
-                }}
-              >
+              <button onClick={() => { setTimerEnabled(false); setTimerRunning(false); setShowCustomInput(false); }}
+                style={{ background: !timerEnabled ? 'rgba(100,116,139,0.3)' : 'rgba(255,255,255,0.04)', border: !timerEnabled ? '2px solid #64748b' : '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s' }}>
                 <p style={{ fontSize: 22, margin: '0 0 4px' }}>🚫</p>
                 <p style={{ color: !timerEnabled ? 'white' : '#64748b', fontSize: 13, fontWeight: 'bold', margin: 0 }}>Off</p>
               </button>
               {[1, 3, 5, 10].map(min => (
-                <button key={min}
-                  onClick={() => { applyTimerPreset(min); setTimerEnabled(true); setShowCustomInput(false); }}
-                  style={{
-                    background: timerEnabled && timerPreset === min && !showCustomInput ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.04)',
-                    border: timerEnabled && timerPreset === min && !showCustomInput ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 14, padding: '14px 8px',
-                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
-                  }}
-                >
+                <button key={min} onClick={() => { applyTimerPreset(min); setTimerEnabled(true); setShowCustomInput(false); }}
+                  style={{ background: timerEnabled && timerPreset === min && !showCustomInput ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.04)', border: timerEnabled && timerPreset === min && !showCustomInput ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s' }}>
                   <p style={{ fontSize: 22, margin: '0 0 4px' }}>⏱️</p>
                   <p style={{ color: timerEnabled && timerPreset === min && !showCustomInput ? '#93c5fd' : '#64748b', fontSize: 13, fontWeight: 'bold', margin: 0 }}>{min} min</p>
                 </button>
               ))}
-              <button
-                onClick={() => setShowCustomInput(s => !s)}
-                style={{
-                  background: showCustomInput ? 'rgba(244,114,182,0.2)' : 'rgba(255,255,255,0.04)',
-                  border: showCustomInput ? '2px solid #f472b6' : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 14, padding: '14px 8px',
-                  cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
-                }}
-              >
+              <button onClick={() => setShowCustomInput(s => !s)}
+                style={{ background: showCustomInput ? 'rgba(244,114,182,0.2)' : 'rgba(255,255,255,0.04)', border: showCustomInput ? '2px solid #f472b6' : '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s' }}>
                 <p style={{ fontSize: 22, margin: '0 0 4px' }}>✏️</p>
                 <p style={{ color: showCustomInput ? '#f472b6' : '#64748b', fontSize: 13, fontWeight: 'bold', margin: 0 }}>Custom</p>
               </button>
             </div>
-
             {showCustomInput && (
               <div className="bg-slate-800 rounded-xl p-4 flex items-center gap-3">
                 <span className="text-slate-400 text-sm">Minutes:</span>
-                <input
-                  type="number" min={1} max={180} value={customMinutes}
-                  onChange={e => setCustomMinutes(Number(e.target.value))}
-                  className="w-20 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm text-center font-bold"
-                />
-                <button
-                  onClick={() => { applyTimerPreset(customMinutes); setTimerEnabled(true); setShowCustomInput(false); }}
-                  style={{ background: '#f472b6', border: 'none', borderRadius: 10, padding: '8px 20px', color: 'white', fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  Set ✓
-                </button>
+                <input type="number" min={1} max={180} value={customMinutes} onChange={e => setCustomMinutes(Number(e.target.value))}
+                  className="w-20 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm text-center font-bold" />
+                <button onClick={() => { applyTimerPreset(customMinutes); setTimerEnabled(true); setShowCustomInput(false); }}
+                  style={{ background: '#f472b6', border: 'none', borderRadius: 10, padding: '8px 20px', color: 'white', fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}>Set ✓</button>
               </div>
             )}
           </div>
-
         </div>
 
-        {/* Back Button at Bottom */}
         <div className="p-4 border-t border-slate-700">
-          <button
-            onClick={() => setShowSettings(false)}
-            className="w-full py-3 rounded-xl font-bold text-white text-base transition-all active:scale-95"
-            style={{ background: 'linear-gradient(135deg, rgba(244,114,182,0.8), rgba(168,85,247,0.8))', border: '1px solid rgba(244,114,182,0.4)' }}
-          >
+          <button onClick={() => setShowSettings(false)} className="w-full py-3 rounded-xl font-bold text-white text-base transition-all active:scale-95"
+            style={{ background: 'linear-gradient(135deg, rgba(244,114,182,0.8), rgba(168,85,247,0.8))', border: '1px solid rgba(244,114,182,0.4)' }}>
             ← Back to Game
           </button>
         </div>
@@ -669,9 +639,7 @@ const ChessGame = () => {
           <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <Trophy className="text-yellow-400" /> Your Stats
-                </h2>
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Trophy className="text-yellow-400" /> Your Stats</h2>
                 <button onClick={() => setShowStats(false)} className="text-slate-400 hover:text-white">✕</button>
               </div>
               <div className="space-y-4">
@@ -718,65 +686,40 @@ const ChessGame = () => {
   // ── GAME SCREEN ───────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
-
-      {/* ── TOP NAVBAR ── */}
       <div className="bg-slate-900 bg-opacity-90 border-b border-slate-700 px-3 sm:px-4 py-2 flex items-center justify-between relative z-30">
-        {/* Left: Title */}
         <div className="flex items-center gap-2">
           <Crown className="text-yellow-400" size={20} />
           <span className="text-white font-bold text-base sm:text-lg">ChessX</span>
           {gameMode === 'ai' && (
-            <span className={`text-xs px-2 py-0.5 rounded font-bold text-white ${
-              aiDifficulty === 'easy' ? 'bg-green-600' : aiDifficulty === 'medium' ? 'bg-yellow-600' : 'bg-red-600'
-            }`}>{aiDifficulty.toUpperCase()}</span>
+            <span className={`text-xs px-2 py-0.5 rounded font-bold text-white ${aiDifficulty === 'easy' ? 'bg-green-600' : aiDifficulty === 'medium' ? 'bg-yellow-600' : 'bg-red-600'}`}>
+              {aiDifficulty.toUpperCase()}
+            </span>
           )}
         </div>
-
-        {/* Center: Turn + Check */}
         <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
           <p className="text-slate-300 text-xs sm:text-sm">
-            Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>
-              {currentPlayer.toUpperCase()}
-            </span>
+            Turn: <span className={`font-bold ${currentPlayer === 'white' ? 'text-white' : 'text-slate-400'}`}>{currentPlayer.toUpperCase()}</span>
             {isCheck && <span className="text-red-500 ml-1 font-bold">⚠️ CHECK!</span>}
             {isThinking && <span className="text-purple-400 ml-1 animate-pulse">🤔...</span>}
           </p>
         </div>
-
-        {/* Right: Pink Heart Button */}
-        <button
-          onClick={() => setShowSettings(true)}
-          style={{
-            width: 38, height: 38, borderRadius: '50%',
-            background: 'rgba(244,114,182,0.1)',
-            border: '1px solid rgba(244,114,182,0.4)',
-            color: '#f472b6',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', transition: 'all 0.2s',
-            boxShadow: '0 0 10px rgba(244,114,182,0.4)',
-          }}
-          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 18px rgba(244,114,182,0.8)'}
-          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 0 10px rgba(244,114,182,0.4)'}
-        >
+        <button onClick={() => setShowSettings(true)}
+          style={{ width:38, height:38, borderRadius:'50%', background:'rgba(244,114,182,0.1)', border:'1px solid rgba(244,114,182,0.4)', color:'#f472b6', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.2s', boxShadow:'0 0 10px rgba(244,114,182,0.4)' }}
+          onMouseEnter={e => e.currentTarget.style.boxShadow='0 0 18px rgba(244,114,182,0.8)'}
+          onMouseLeave={e => e.currentTarget.style.boxShadow='0 0 10px rgba(244,114,182,0.4)'}>
           <HeartIcon size={17} glow />
         </button>
       </div>
 
-      {/* Timer Bar */}
       {timerEnabled && (
         <div className="bg-slate-900 border-b border-slate-700 px-4 py-1.5 flex justify-center gap-4">
-          <div className={`px-4 py-1 rounded-lg text-sm font-mono font-bold ${currentPlayer === 'white' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'} ${whiteTime < 30 ? 'text-red-400' : ''}`}>
-            ♔ {formatTime(whiteTime)}
-          </div>
-          <div className={`px-4 py-1 rounded-lg text-sm font-mono font-bold ${currentPlayer === 'black' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'} ${blackTime < 30 ? 'text-red-400' : ''}`}>
-            ♚ {formatTime(blackTime)}
-          </div>
+          <div className={`px-4 py-1 rounded-lg text-sm font-mono font-bold ${currentPlayer === 'white' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'} ${whiteTime < 30 ? 'text-red-400' : ''}`}>♔ {formatTime(whiteTime)}</div>
+          <div className={`px-4 py-1 rounded-lg text-sm font-mono font-bold ${currentPlayer === 'black' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'} ${blackTime < 30 ? 'text-red-400' : ''}`}>♚ {formatTime(blackTime)}</div>
         </div>
       )}
 
       <div className="flex-grow p-2 sm:p-3 md:p-4">
         <div className="max-w-5xl mx-auto">
-
           {gameOver && !isDraw && (
             <div className="bg-green-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg mb-3 md:mb-4 text-center font-bold text-sm sm:text-lg md:text-xl animate-pulse">
               Checkmate! {winner?.toUpperCase()} Wins! 🎉
@@ -794,8 +737,7 @@ const ChessGame = () => {
                 <h3 className="text-white text-lg md:text-xl font-bold mb-3 md:mb-4 text-center">Promote Pawn</h3>
                 <div className="flex gap-3 md:gap-4">
                   {['queen','rook','bishop','knight'].map(pieceType => (
-                    <button key={pieceType}
-                      onClick={() => promotionSquare && promotePawn(promotionSquare.row, promotionSquare.col, pieceType)}
+                    <button key={pieceType} onClick={() => promotionSquare && promotePawn(promotionSquare.row, promotionSquare.col, pieceType)}
                       className="bg-slate-700 hover:bg-slate-600 text-white p-3 md:p-4 rounded-lg transition-all active:scale-95 text-4xl md:text-5xl">
                       {getPieceSymbol({ type: pieceType, color: currentPlayer })}
                     </button>
@@ -806,13 +748,9 @@ const ChessGame = () => {
           )}
 
           <div className="flex flex-col lg:flex-row gap-3 items-start justify-center">
-
-            {/* Move History Panel */}
             {showMoveHistory && (
               <div className="w-full lg:w-56 bg-slate-800 p-3 rounded-lg order-2 lg:order-1">
-                <h3 className="text-white font-bold mb-2 flex items-center gap-2 text-sm">
-                  <TrendingUp size={16} /> Moves
-                </h3>
+                <h3 className="text-white font-bold mb-2 flex items-center gap-2 text-sm"><TrendingUp size={16} /> Moves</h3>
                 <div className="max-h-60 overflow-y-auto space-y-1">
                   {moveHistory.length === 0
                     ? <p className="text-slate-400 text-xs text-center">No moves yet</p>
@@ -826,7 +764,6 @@ const ChessGame = () => {
               </div>
             )}
 
-            {/* Chess Board */}
             <div className="flex justify-center order-1 lg:order-2">
               <div className="inline-block border-2 sm:border-4 border-slate-700 bg-slate-800 shadow-2xl">
                 {board.map((row, rowIndex) => (
@@ -836,9 +773,7 @@ const ChessGame = () => {
                       const isSelected = selectedSquare && selectedSquare[0] === rowIndex && selectedSquare[1] === colIndex;
                       const isVM = isValidMoveSquare(rowIndex, colIndex);
                       return (
-                        <button
-                          key={`${rowIndex}-${colIndex}`}
-                          onClick={() => handleSquareClick(rowIndex, colIndex)}
+                        <button key={`${rowIndex}-${colIndex}`} onClick={() => handleSquareClick(rowIndex, colIndex)}
                           disabled={isThinking || !!promotionSquare}
                           className={`
                             w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-20 xl:h-20
@@ -849,16 +784,11 @@ const ChessGame = () => {
                             ${isSelected ? 'ring-2 ring-inset ring-blue-500 scale-95' : ''}
                             ${isVM ? 'ring-2 ring-inset ring-green-400' : ''}
                             ${isThinking || promotionSquare ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110 active:scale-95'}
-                          `}
-                        >
-                          <span className={piece?.color === 'white'
-                            ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.9)]'
-                            : 'text-slate-900 drop-shadow-[0_0_3px_rgba(255,255,255,0.7)]'}>
+                          `}>
+                          <span className={piece?.color === 'white' ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.9)]' : 'text-slate-900 drop-shadow-[0_0_3px_rgba(255,255,255,0.7)]'}>
                             {getPieceSymbol(piece)}
                           </span>
-                          {isVM && !piece && (
-                            <div className="absolute w-2 h-2 sm:w-3 sm:h-3 md:w-4 md:h-4 bg-green-500 rounded-full opacity-70" />
-                          )}
+                          {isVM && !piece && <div className="absolute w-2 h-2 sm:w-3 sm:h-3 md:w-4 md:h-4 bg-green-500 rounded-full opacity-70" />}
                         </button>
                       );
                     })}
@@ -867,25 +797,20 @@ const ChessGame = () => {
               </div>
             </div>
 
-            {/* Captured Pieces Panel */}
             <div className="w-full lg:w-56 xl:w-64 bg-slate-800 p-3 md:p-4 rounded-lg order-3">
               <h3 className="text-white font-bold mb-2 md:mb-3 text-sm md:text-base">Captured</h3>
               <div className="space-y-2 md:space-y-3">
                 <div>
                   <p className="text-xs md:text-sm text-slate-400 mb-1">White:</p>
                   <div className="flex flex-wrap gap-1">
-                    {capturedPieces.white.map((piece, idx) => (
-                      <span key={idx} className="text-xl md:text-2xl text-slate-900">{getPieceSymbol(piece)}</span>
-                    ))}
+                    {capturedPieces.white.map((piece, idx) => <span key={idx} className="text-xl md:text-2xl text-slate-900">{getPieceSymbol(piece)}</span>)}
                     {capturedPieces.white.length === 0 && <span className="text-slate-600 text-xs">None</span>}
                   </div>
                 </div>
                 <div>
                   <p className="text-xs md:text-sm text-slate-400 mb-1">Black:</p>
                   <div className="flex flex-wrap gap-1">
-                    {capturedPieces.black.map((piece, idx) => (
-                      <span key={idx} className="text-xl md:text-2xl text-white">{getPieceSymbol(piece)}</span>
-                    ))}
+                    {capturedPieces.black.map((piece, idx) => <span key={idx} className="text-xl md:text-2xl text-white">{getPieceSymbol(piece)}</span>)}
                     {capturedPieces.black.length === 0 && <span className="text-slate-600 text-xs">None</span>}
                   </div>
                 </div>
@@ -893,24 +818,20 @@ const ChessGame = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="text-center flex flex-wrap gap-2 justify-center mt-4">
             <button onClick={() => setGameMode(null)} className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold transition-all active:scale-95 text-xs sm:text-sm md:text-base">
               <span className="hidden md:inline">Change </span>Mode
             </button>
             <button onClick={initializeBoard} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base">
-              <RotateCcw size={16} className="md:w-5 md:h-5" />
-              <span className="hidden sm:inline">New</span><span className="hidden md:inline"> Game</span>
+              <RotateCcw size={16} className="md:w-5 md:h-5" /><span className="hidden sm:inline">New</span><span className="hidden md:inline"> Game</span>
             </button>
-            <button onClick={undoMove}
-              disabled={boardHistory.length <= 1 || gameOver || (gameMode === 'ai' && currentPlayer === 'black')}
+            <button onClick={undoMove} disabled={boardHistory.length <= 1 || gameOver || (gameMode === 'ai' && currentPlayer === 'black')}
               className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-600 disabled:opacity-50 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base">
               <Undo size={16} className="md:w-5 md:h-5" /> Undo
             </button>
             <button onClick={() => setShowMoveHistory(!showMoveHistory)}
               className={`${showMoveHistory ? 'bg-green-600' : 'bg-slate-600'} hover:opacity-90 text-white px-3 py-2 md:px-4 md:py-2.5 rounded-lg font-bold flex items-center gap-1 md:gap-2 transition-all active:scale-95 text-xs sm:text-sm md:text-base`}>
-              <TrendingUp size={16} className="md:w-5 md:h-5" />
-              <span className="hidden sm:inline">History</span>
+              <TrendingUp size={16} className="md:w-5 md:h-5" /><span className="hidden sm:inline">History</span>
             </button>
           </div>
 
@@ -927,18 +848,14 @@ const ChessGame = () => {
               {gameMode === 'ai' && <li>• You play as WHITE<span className="hidden md:inline"> vs computer</span></li>}
             </ul>
           </div>
-
         </div>
       </div>
 
-      {/* Stats Modal */}
       {showStats && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Trophy className="text-yellow-400" /> Your Stats
-              </h2>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Trophy className="text-yellow-400" /> Your Stats</h2>
               <button onClick={() => setShowStats(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
             <div className="space-y-4">
