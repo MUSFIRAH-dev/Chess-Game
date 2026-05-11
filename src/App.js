@@ -507,7 +507,7 @@ const ChessGame = () => {
   // ── SETTINGS FULL SCREEN ──────────────────────────────────────────────────────
   if (showSettings) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col" style={{backgroundColor:"#0f172a"}}>
         <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center gap-3">
           <button onClick={() => setShowSettings(false)} className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 transition-all active:scale-95">
             <ArrowLeft size={18} className="text-white" />
@@ -608,7 +608,7 @@ const ChessGame = () => {
   // ── HOME SCREEN ───────────────────────────────────────────────────────────────
   if (!gameMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col" style={{backgroundColor:"#0f172a"}}>
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl">
             <div className="text-center mb-8">
@@ -685,7 +685,7 @@ const ChessGame = () => {
 
   // ── GAME SCREEN ───────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col" style={{backgroundColor:"#0f172a"}}>
       <div className="bg-slate-900 bg-opacity-90 border-b border-slate-700 px-3 sm:px-4 py-2 flex items-center justify-between relative z-30">
         <div className="flex items-center gap-2">
           <Crown className="text-yellow-400" size={20} />
