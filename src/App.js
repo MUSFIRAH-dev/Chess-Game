@@ -100,8 +100,8 @@ const ChessGame = () => {
     ocean:   { name: 'Ocean Blue',   light: 'bg-[#e8f4f8]', dark: 'bg-[#4a90a4]', icon: '🌊', gradient: 'linear-gradient(135deg, #e8f4f8, #4a90a4)' },
     forest: { name: 'Forest Green', light: 'bg-[#ECE3CE]', dark: 'bg-[#2D5A27]', icon: '🌲', gradient: 'linear-gradient(135deg, #ECE3CE, #2D5A27)', border: '#1a3d18' },
     purple:  { name: 'Purple Royale',light: 'bg-[#f3e5f5]', dark: 'bg-[#9c27b0]', icon: '👑', gradient: 'linear-gradient(135deg, #f3e5f5, #9c27b0)' },
-    dark:    { name: 'Dark Mode',    light: 'bg-[#4a5568]', dark: 'bg-[#1a202c]',  icon: '🌙', gradient: 'linear-gradient(135deg, #4a5568, #1a202c)' },
-    neon:    { name: 'Neon Cyber',   light: 'bg-[#1a1a2e]', dark: 'bg-[#0f3460]',  icon: '🌃', gradient: 'linear-gradient(135deg, #1a1a2e, #0f3460)' },
+    dark: { name: 'Marble', light: 'bg-[#F5F5F0]', dark: 'bg-[#2C2C2C]', icon: '♟️', gradient: 'linear-gradient(135deg, #F5F5F0, #2C2C2C)' },
+    neon: { name: 'Sakura', light: 'bg-[#FFD7E4]', dark: 'bg-[#8B1A4A]', icon: '🌸', gradient: 'linear-gradient(135deg, #FFD7E4, #8B1A4A)' },
   };
 
   const vibrate = (pattern) => { if (navigator.vibrate) navigator.vibrate(pattern); };
