@@ -138,14 +138,23 @@ const ChessGame = () => {
   useEffect(() => { localStorage.setItem('chessStats', JSON.stringify(stats)); }, [stats]);
 
   const updateStats = (winningPlayer) => {
-    setStats(prev => {
-      const s = { ...prev, gamesPlayed: prev.gamesPlayed + 1 };
-      if (isDraw) { s.draws += 1; s.winStreak = 0; }
-      else if (winningPlayer === 'white' && gameMode === 'ai') { s.wins += 1; s.winStreak += 1; }
-      else if (winningPlayer === 'black' && gameMode === 'ai') { s.losses += 1; s.winStreak = 0; }
-      return s;
-    });
-  };
+  setStats(prev => {
+    const s = { ...prev, gamesPlayed: prev.gamesPlayed + 1 };
+    if (winningPlayer === null) {
+      s.draws = prev.draws + 1;
+      s.winStreak = 0;
+    } else if (gameMode === 'ai') {
+      if (winningPlayer === 'white') {
+        s.wins = prev.wins + 1;
+        s.winStreak = prev.winStreak + 1;
+      } else if (winningPlayer === 'black') {
+        s.losses = prev.losses + 1;
+        s.winStreak = 0;
+      }
+    }
+    return s;
+  });
+};
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
